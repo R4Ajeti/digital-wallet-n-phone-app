@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "462644328200",
+    "firebase_url": "https://kuleta-digitale-n-db-default-rtdb.europe-west1.firebasedatabase.app",
+    "project_id": "kuleta-digitale-n-db",
+    "storage_bucket": "kuleta-digitale-n-db.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:462644328200:android:87e83f5d656aa6062f5ebd",
+        "android_client_info": {
+          "package_name": "com.gentool.kuletadigitalen"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDJe3177j-8bH9GJMFrnPyH-3YEAjDQ3Jg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
