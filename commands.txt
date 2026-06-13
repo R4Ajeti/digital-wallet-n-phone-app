@@ -1,0 +1,10 @@
+magick input.svg -resize 1024x1024 output.png
+
+magick stema-komunes-prishtines.svg stema-komunes-prishtines.png
+
+/Users/rinorajeti/Desktop/kuleta-digitale-n-app/android/app/src/main/res
+
+adb devices
+flutter run -d 21121FDF6001KZ
+
+flutter run --release --no-resident -d 00008140-000C75443A62801C
