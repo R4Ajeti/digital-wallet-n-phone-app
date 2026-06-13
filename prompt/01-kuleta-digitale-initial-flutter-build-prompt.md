@@ -44,34 +44,6 @@ iOS bundle ID for later:
 com.gentool.kuletadigitalen
 ```
 
----
-
-## Important Safety / Demo Rule
-
-This app is only a **DEMO/prototype**.
-
-It must not copy, impersonate, or pretend to be any real municipality, government, public transport, or official ticketing system.
-
-Do not use:
-
-- Official logos
-- Official names
-- Official colors
-- Official branding
-- Any real authority branding
-
-Add a visible **“DEMO”** label on the QR screen.
-
-Add this footer text on the main QR screen:
-
-```text
-Ky aplikacion është vetëm prototip demonstrues.
-```
-
-The app must clearly be a prototype.
-
----
-
 ## Main Technology
 
 Use:
