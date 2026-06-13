@@ -8,20 +8,24 @@ class ProfileCard extends StatelessWidget {
   const ProfileCard({
     required this.userTypeLabel,
     required this.imagePath,
+    this.imageScale = 1,
     super.key,
   });
 
   final String userTypeLabel;
   final String imagePath;
+  final double imageScale;
 
   @override
   Widget build(BuildContext context) {
+    final safeImageScale = imageScale.clamp(0.5, 2.0);
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(14),
         child: Row(
           children: [
-            _ProfileImage(path: imagePath),
+            _ProfileImage(path: imagePath, scale: safeImageScale),
             const SizedBox(width: 14),
             Expanded(
               child: Text(
@@ -44,40 +48,47 @@ class ProfileCard extends StatelessWidget {
 }
 
 class _ProfileImage extends StatelessWidget {
-  const _ProfileImage({required this.path});
+  const _ProfileImage({required this.path, required this.scale});
 
   final String path;
+  final double scale;
 
   @override
   Widget build(BuildContext context) {
     final hasImage = path.isNotEmpty && File(path).existsSync();
 
     return Container(
-      width: 78,
-      height: 88,
+      width: 78 * scale,
+      height: 88 * scale,
       decoration: BoxDecoration(
         color: AppColors.lavender,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(18 * scale),
       ),
       clipBehavior: Clip.antiAlias,
       child: hasImage
           ? Image.file(
               File(path),
               fit: BoxFit.cover,
-              errorBuilder: (_, _, _) => const _ProfileFallback(),
+              errorBuilder: (_, _, _) => _ProfileFallback(scale: scale),
             )
-          : const _ProfileFallback(),
+          : _ProfileFallback(scale: scale),
     );
   }
 }
 
 class _ProfileFallback extends StatelessWidget {
-  const _ProfileFallback();
+  const _ProfileFallback({required this.scale});
+
+  final double scale;
 
   @override
   Widget build(BuildContext context) {
-    return const Center(
-      child: Icon(Icons.person_rounded, color: AppColors.primary, size: 44),
+    return Center(
+      child: Icon(
+        Icons.person_rounded,
+        color: AppColors.primary,
+        size: 44 * scale,
+      ),
     );
   }
 }

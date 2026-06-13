@@ -99,41 +99,33 @@ class _TicketScreenState extends State<TicketScreen> {
   }) {
     final qrSize = (MediaQuery.sizeOf(context).width - 36) * 0.7;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Expanded(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(18, 14, 18, 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _HomeHeader(onMenuPressed: _openSettings),
-                const SizedBox(height: 24),
-                QrTicketWidget(
-                  qrValue: data.activeQrValue,
-                  overlayImagePath: overlayPath,
-                  positionX: data.overlayPositionX,
-                  positionY: data.overlayPositionY,
-                  maxQrSize: qrSize,
-                  animateOverlay: true,
-                  onPositionSaved: (x, y) => _databaseService
-                      .saveOverlayPosition(widget.user.uid, x, y),
-                ),
-                const SizedBox(height: 20),
-                ProfileCard(
-                  userTypeLabel: data.userTypeLabel,
-                  imagePath: profilePath,
-                ),
-                const SizedBox(height: 16),
-                TicketValidityCard(expirationText: data.expiresAtText),
-              ],
-            ),
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(18, 8, 18, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _HomeHeader(onMenuPressed: _openSettings),
+          const SizedBox(height: 12),
+          QrTicketWidget(
+            qrValue: data.activeQrValue,
+            overlayImagePath: overlayPath,
+            positionX: data.overlayPositionX,
+            positionY: data.overlayPositionY,
+            maxQrSize: qrSize,
+            animateOverlay: true,
+            onPositionSaved: (x, y) =>
+                _databaseService.saveOverlayPosition(widget.user.uid, x, y),
           ),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(18, 8, 18, 16),
-          child: OutlinedButton.icon(
+          const SizedBox(height: 20),
+          ProfileCard(
+            userTypeLabel: data.userTypeLabel,
+            imagePath: profilePath,
+            imageScale: 1.25,
+          ),
+          const SizedBox(height: 16),
+          TicketValidityCard(expirationText: data.expiresAtText),
+          const SizedBox(height: 18),
+          OutlinedButton.icon(
             onPressed: _goBack,
             icon: const Icon(
               Icons.chevron_left_rounded,
@@ -155,8 +147,8 @@ class _TicketScreenState extends State<TicketScreen> {
               ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -180,21 +172,27 @@ class _TicketScreenState extends State<TicketScreen> {
 class _HomeHeader extends StatelessWidget {
   const _HomeHeader({required this.onMenuPressed});
 
+  static const _headerHeight = 48.0;
+  static const _headerTextFontSize = 14.0;
+  static const _menuButtonSize = 55.2;
+  static const _menuIconSize = 32.2;
+
   final VoidCallback onMenuPressed;
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 48,
+      height: _headerHeight,
       child: Stack(
         alignment: Alignment.center,
+        clipBehavior: Clip.none,
         children: [
           const Align(
             alignment: Alignment.centerLeft,
             child: BrandMark(size: 42),
           ),
           const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 60),
+            padding: EdgeInsets.symmetric(horizontal: 68),
             child: Text(
               'Komuna e Prishtinës',
               maxLines: 1,
@@ -202,7 +200,7 @@ class _HomeHeader extends StatelessWidget {
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: AppColors.ink,
-                fontSize: 16,
+                fontSize: _headerTextFontSize,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -211,8 +209,13 @@ class _HomeHeader extends StatelessWidget {
             alignment: Alignment.centerRight,
             child: IconButton(
               tooltip: 'Hap menynë',
+              style: IconButton.styleFrom(
+                fixedSize: const Size.square(_menuButtonSize),
+                minimumSize: const Size.square(_menuButtonSize),
+                padding: EdgeInsets.zero,
+              ),
               onPressed: onMenuPressed,
-              icon: const Icon(Icons.menu_rounded, size: 28),
+              icon: const Icon(Icons.menu_rounded, size: _menuIconSize),
             ),
           ),
         ],
