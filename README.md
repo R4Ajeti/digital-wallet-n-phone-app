@@ -1,58 +1,59 @@
 # Kuleta Digitale
 
-Aplikacion demonstrues Flutter për Android dhe iOS, i lidhur me Firebase
-Authentication dhe Firebase Realtime Database.
+A Flutter demonstration app for Android and iOS, connected to Firebase
+Authentication and Firebase Realtime Database.
 
-> Ky aplikacion nuk është shërbim zyrtar dhe nuk përfaqëson asnjë komunë,
-> institucion publik ose sistem real të biletave.
+> This app is not an official service and does not represent any municipality,
+> public institution, or real ticketing system.
 
-## Përmbledhje
+## Overview
 
-- Regjistrim, kyçje, dalje dhe ndryshim fjalëkalimi me email.
-- Sesion i ruajtur lokalisht dhe rifreskim automatik i Firebase ID token.
-- Të dhëna private për secilin përdorues në Realtime Database.
-- Bilanc dhe datë vlefshmërie të biletës të ndryshueshme.
-- QR Code ID i ruajtur nga vlera manuale ose nga skanimi me kamerë.
-- QR Code ID standard për përdoruesit e rinj, i lexuar nga Firebase.
-- Mbështetje offline me cache lokale dhe sinkronizim të shkrimeve të pritshme.
-- Fotografi profili dhe ikonë mbi QR të ruajtura vetëm në pajisje.
-- Ndërfaqe dhe mesazhe në shqip.
-- Ikona të aplikacionit për Android dhe iOS.
+- Email registration, sign-in, sign-out, and password changes.
+- Locally persisted sessions with automatic Firebase ID token refresh.
+- Private Realtime Database data for each user.
+- Editable wallet balance and ticket expiration date.
+- A QR code ID saved through manual entry or camera scanning.
+- A Firebase-managed default QR code ID for new users.
+- Offline support with local caching and queued write synchronization.
+- Profile pictures and QR overlay images stored only on the device.
+- Albanian app interface and messages.
+- Android and iOS launcher icons.
 
-## Identifikuesit
+## Application Identifiers
 
-| Konfigurimi | Vlera |
+| Setting | Value |
 | --- | --- |
-| Emri i aplikacionit | `Kuleta Digitale` |
+| Application name | `Kuleta Digitale` |
 | Firebase project ID | `kuleta-digitale-n-db` |
 | Android application ID | `com.gentool.kuletadigitalen` |
 | iOS bundle ID | `com.gentool.kuletadigitalen` |
-| Versioni | `1.0.0+1` |
+| Version | `1.0.0+1` |
 
-## Teknologjitë
+## Technology
 
 - Flutter `3.44.2`
 - Dart `3.12.2`
 - Firebase Authentication REST API
 - Firebase Realtime Database REST API
-- `mobile_scanner` për skanimin e QR kodeve
-- `permission_handler` për lejen e kamerës
-- `shared_preferences` për sesionin, cache dhe shkrimet offline
-- `image_picker` dhe `path_provider` për imazhet lokale
+- `mobile_scanner` for QR code scanning
+- `permission_handler` for camera permission
+- `shared_preferences` for sessions, caching, and offline writes
+- `image_picker` and `path_provider` for local images
 
-Aplikacioni nuk varet nga FlutterFire gjatë ekzekutimit. Firebase Auth dhe
-Realtime Database përdoren drejtpërdrejt përmes REST API. Nuk përdoren Firebase
-Admin SDK, service accounts, Firebase Storage ose çelësa privatë.
+The app does not depend on FlutterFire at runtime. Firebase Authentication and
+Realtime Database are accessed directly through their REST APIs. The app does
+not use the Firebase Admin SDK, service accounts, Firebase Storage, or private
+keys.
 
-## Kërkesat
+## Requirements
 
-- Flutter SDK në kanalin stable
-- Android Studio dhe Android SDK për Android
-- Xcode dhe një Apple Development Team për iOS
-- Firebase CLI vetëm kur ndryshohen ose publikohen rregullat e databazës
-- Pajisje me Developer Mode aktiv për instalim direkt gjatë zhvillimit
+- Flutter SDK on the stable channel
+- Android Studio and the Android SDK for Android development
+- Xcode and an Apple Development Team for iOS development
+- Firebase CLI when changing or deploying database rules
+- A device with Developer Mode enabled for direct development installation
 
-Kontrollo mjedisin:
+Check the development environment:
 
 ```bash
 flutter doctor
@@ -60,117 +61,115 @@ flutter devices
 flutter pub get
 ```
 
-## Nisja në Android
+## Running on Android
 
-Lidhe pajisjen, aktivizo USB debugging dhe kontrollo që shfaqet:
+Connect the device, enable USB debugging, and verify that it is detected:
 
 ```bash
 adb devices
 flutter devices
 ```
 
-Nise në pajisjen e zgjedhur:
+Run the app on the selected device:
 
 ```bash
 flutter run -d <android-device-id>
 ```
 
-Shembulli për pajisjen e përdorur aktualisht:
+Example using the currently configured Android device:
 
 ```bash
 flutter run -d 21121FDF6001KZ
 ```
 
-Gjenero APK:
+Build a debug APK:
 
 ```bash
 flutter build apk --debug
 ```
 
-APK-ja krijohet te `build/app/outputs/flutter-apk/app-debug.apk`.
+The APK is created at `build/app/outputs/flutter-apk/app-debug.apk`.
 
-> Konfigurimi aktual Android përdor debug signing edhe për build-in release.
-> Para publikimit në Play Store duhet shtuar një release keystore privat.
+> The current Android configuration uses debug signing for release builds.
+> Configure a private release keystore before publishing to Google Play.
 
-## Nisja në iPhone
+## Running on iPhone
 
-Projekti iOS është i konfiguruar me bundle ID
-`com.gentool.kuletadigitalen`. Në një Mac ose Apple account tjetër, hape
-`ios/Runner.xcworkspace` në Xcode dhe zgjidh Development Team te
-**Runner > Signing & Capabilities**.
+The iOS project uses the bundle ID `com.gentool.kuletadigitalen`. On another
+Mac or Apple account, open `ios/Runner.xcworkspace` in Xcode and select the
+Development Team under **Runner > Signing & Capabilities**.
 
-Për zhvillim me debugger:
+Run a development build with the Flutter debugger:
 
 ```bash
 flutter run -d <ios-device-id>
 ```
 
-Debug build mund të varet nga lidhja me Flutter debugger. Për ta instaluar
-aplikacionin që të hapet nga Home Screen pa kabllo, përdor release mode:
+A debug build may depend on its Flutter debugger connection. To install a
+build that can be opened from the Home Screen without a USB connection, use
+release mode:
 
 ```bash
 flutter run --release --no-resident -d <ios-device-id>
 ```
 
-Shembulli për iPhone-in e konfiguruar:
+Example using the configured iPhone:
 
 ```bash
 flutter run --release --no-resident -d 00008140-000C75443A62801C
 ```
 
-Pas instalimit, mbylle procesin e komandës nëse është ende aktiv, shkëpute
-kabllon dhe hape aplikacionin normalisht nga Home Screen. Aplikacioni vazhdon
-të hapet për sa kohë provisioning profile dhe developer certificate janë të
-vlefshme.
+After installation, stop the command if it is still running, disconnect the
+USB cable, and open the app normally from the Home Screen. The app remains
+launchable while its provisioning profile and developer certificate are valid.
 
-Nëse iOS bllokon hapjen:
+If iOS prevents the app from opening:
 
-1. Aktivizo **Settings > Privacy & Security > Developer Mode**.
-2. Konfirmo besimin për developer account në **VPN & Device Management**, nëse
-   kërkohet.
-3. Kontrollo signing team dhe provisioning profile në Xcode.
-4. Riinstalo build-in release pas çdo ndryshimi të signing.
+1. Enable **Settings > Privacy & Security > Developer Mode**.
+2. Trust the developer account under **VPN & Device Management** if prompted.
+3. Check the signing team and provisioning profile in Xcode.
+4. Reinstall the release build after making signing changes.
 
 ## Firebase
 
 ### Authentication
 
-Në Firebase Console, te **Authentication > Sign-in method**, duhet të jetë
-aktivizuar provideri **Email/Password**.
+Enable the **Email/Password** provider under
+**Firebase Console > Authentication > Sign-in method**.
 
-Sesioni ruhet në pajisje. Kur ID token është afër skadimit, aplikacioni e
-rifreskon me Firebase Secure Token API.
+The session is stored on the device. When the Firebase ID token is close to
+expiration, the app refreshes it through the Firebase Secure Token API.
 
-### QR Code ID standard
+### Default QR Code ID
 
-Gjatë regjistrimit aplikacioni lexon:
+During registration, the app reads:
 
 ```text
 /appConfig/defaultQrCodeId
 ```
 
-Vlera e konfiguruar aktualisht është:
+The currently configured value is:
 
 ```text
 AD307A67-E263-4800-87C0-C14D0B1B83AF
 ```
 
-Nëse kjo vlerë ekziston në Firebase, ajo ruhet te profili i përdoruesit të ri.
-Nëse mungon ose nuk mund të lexohet, formulari i regjistrimit kërkon që
-përdoruesi ta shkruajë QR Code ID.
+When this value exists in Firebase, it is saved to the new user's profile. If
+it is missing or cannot be read, the registration form requires the user to
+enter a QR code ID.
 
-Pas krijimit të profilit, QR Code ID ndryshon vetëm kur përdoruesi:
+After profile creation, the QR code ID changes only when the user:
 
-- shkruan një vlerë të re te **Cilësimet e QR Code-it**; ose
-- skanon një QR kod të ri me kamerë.
+- enters a new value on the QR settings screen; or
+- scans a new QR code with the camera.
 
-Vlera ruhet lokalisht dhe në:
+The value is cached locally and stored at:
 
 ```text
 /users/{uid}/qr/value
 ```
 
-### Struktura e databazës
+### Database Structure
 
 ```text
 appConfig/
@@ -202,15 +201,16 @@ users/{uid}/
   updatedAt
 ```
 
-Rrugët e imazheve janë lokale dhe nuk sinkronizojnë skedarët ndërmjet
-pajisjeve. QR scanner ruan vetëm tekstin e dekoduar, jo pamjen nga kamera.
+Image paths are local and do not synchronize image files between devices. The
+QR scanner stores only the decoded text, not camera frames or images.
 
-### Rregullat e databazës
+### Database Rules
 
-`database.rules.json` lejon lexim publik vetëm të `appConfig`, ndalon shkrimin
-e tij nga klienti dhe kufizon çdo profil te përdoruesi i autentikuar përkatës.
+`database.rules.json` allows public read access only to `appConfig`, prevents
+client writes to that configuration, and restricts each user profile to its
+authenticated owner.
 
-Publiko rregullat:
+Deploy the rules:
 
 ```bash
 firebase login
@@ -218,37 +218,38 @@ firebase use kuleta-digitale-n-db
 firebase deploy --only database
 ```
 
-Vlera `appConfig/defaultQrCodeId` duhet administruar nga Firebase Console ose
-nga një mjedis administrativ, jo nga aplikacioni klient.
+Manage `appConfig/defaultQrCodeId` through Firebase Console or another
+administrative environment, not through the client app.
 
-## Lejet
+## Permissions
 
-Android deklaron lejet për internet, gjendjen e rrjetit, kamerën dhe zgjedhjen
-e imazheve në `android/app/src/main/AndroidManifest.xml`.
+Android declares internet, network state, camera, and image selection
+permissions in `android/app/src/main/AndroidManifest.xml`.
 
-iOS deklaron `NSCameraUsageDescription` në `ios/Runner/Info.plist`. Kur
-përdoruesi shtyp **Skano QR Code**, aplikacioni:
+iOS declares `NSCameraUsageDescription` in `ios/Runner/Info.plist`. When the
+user taps the scan button, the app:
 
-1. kërkon lejen e kamerës;
-2. hap scanner-in kur leja pranohet;
-3. shfaq mesazh kur leja refuzohet; dhe
-4. drejton te Settings kur leja është permanently denied ose restricted.
+1. Requests camera permission.
+2. Opens the scanner when permission is granted.
+3. Shows a clear message when permission is denied.
+4. Directs the user to Settings when permission is permanently denied or
+   restricted.
 
-## Ikona e aplikacionit
+## Application Icon
 
-Burimi i ikonës është:
+The source image is:
 
 ```text
 experimental-resource/icon/stema-komunes-prishtines.png
 ```
 
-Rigjenero ikonat për të dy platformat:
+Regenerate icons for both platforms:
 
 ```bash
 dart run flutter_launcher_icons
 ```
 
-## Verifikimi
+## Verification
 
 ```bash
 dart format --output=none --set-exit-if-changed lib test
@@ -258,23 +259,23 @@ flutter build apk --debug
 flutter build ios --release
 ```
 
-Testet mbulojnë validimin, formatimin e datave, të dhënat e paplota nga
-Firebase, migrimin e skemës së vjetër QR, ruajtjen manuale, gjendjen boshe,
-gjenerimin e QR kodit dhe pamjen golden të ekranit kryesor.
+The tests cover validation, date formatting, incomplete Firebase data, legacy
+QR schema migration, manual QR value persistence, empty states, QR generation,
+and the home screen golden image.
 
-## Struktura e projektit
+## Project Structure
 
 ```text
-android/                 Konfigurimi Android
-ios/                     Projekti aktiv iOS
+android/                 Android configuration
+ios/                     Active iOS project
 lib/
-  models/                Modelet e sesionit dhe përdoruesit
-  screens/               Ekranet e aplikacionit
-  services/              Firebase REST, cache dhe imazhet lokale
-  theme/                 Ngjyrat dhe stilet
-  utils/                 Validimi, datat dhe mesazhet
-  widgets/               Komponentët e ripërdorshëm
-test/                    Testet widget, unit dhe golden
-database.rules.json      Rregullat e Realtime Database
-commands.txt             Komanda lokale të dobishme për pajisjet
+  models/                Session and user models
+  screens/               Application screens
+  services/              Firebase REST, caching, and local images
+  theme/                 Colors and styles
+  utils/                 Validation, dates, and messages
+  widgets/               Reusable UI components
+test/                    Widget, unit, and golden tests
+database.rules.json      Realtime Database rules
+commands.txt             Useful local device commands
 ```
