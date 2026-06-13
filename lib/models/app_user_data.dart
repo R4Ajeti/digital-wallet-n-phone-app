@@ -51,8 +51,8 @@ class AppUserData {
       activeQrSource: _text(qr['activeSource'], fallback: 'manual'),
       activeQrValue: _text(qr['activeValue']),
       overlayImagePath: _text(overlay['localImagePath']),
-      overlayPositionX: _number(overlay['positionX'], fallback: 0.5),
-      overlayPositionY: _number(overlay['positionY'], fallback: 0.5),
+      overlayPositionX: _number(overlay['positionX'], fallback: 0.0),
+      overlayPositionY: _number(overlay['positionY'], fallback: 0.0),
     );
   }
 

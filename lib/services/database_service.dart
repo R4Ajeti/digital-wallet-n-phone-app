@@ -39,13 +39,13 @@ class DatabaseService {
         'manualValue': '',
         'scannedValue': '',
         'activeSource': 'manual',
-        'activeValue': '',
+        'activeValue': 'KULETA-DEMO-${user.uid}',
         'updatedAt': timestamp,
       },
       'qrOverlay': {
         'localImagePath': '',
-        'positionX': 0.5,
-        'positionY': 0.5,
+        'positionX': 0.0,
+        'positionY': 0.0,
         'updatedAt': timestamp,
       },
       'settings': {'language': 'sq', 'demoMode': true},
@@ -97,17 +97,21 @@ class DatabaseService {
     addIfMissing('qr/manualValue', _map(data['qr'])['manualValue'], '');
     addIfMissing('qr/scannedValue', _map(data['qr'])['scannedValue'], '');
     addIfMissing('qr/activeSource', _map(data['qr'])['activeSource'], 'manual');
-    addIfMissing('qr/activeValue', _map(data['qr'])['activeValue'], '');
+    addIfMissing(
+      'qr/activeValue',
+      _map(data['qr'])['activeValue'],
+      'KULETA-DEMO-${user.uid}',
+    );
     addIfMissing(
       'qrOverlay/localImagePath',
       _map(data['qrOverlay'])['localImagePath'],
       '',
     );
     if (_map(data['qrOverlay'])['positionX'] == null) {
-      updates['qrOverlay/positionX'] = 0.5;
+      updates['qrOverlay/positionX'] = 0.0;
     }
     if (_map(data['qrOverlay'])['positionY'] == null) {
-      updates['qrOverlay/positionY'] = 0.5;
+      updates['qrOverlay/positionY'] = 0.0;
     }
     if (ticket['expiresAtText'] != expirationText) {
       updates['ticket/expiresAt'] = expiration.toIso8601String();

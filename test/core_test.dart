@@ -55,7 +55,7 @@ void main() {
     expect(data.userTypeLabel, AppUserData.defaultUserType);
     expect(data.activeQrSource, 'manual');
     expect(data.overlayPositionX, 0.25);
-    expect(data.overlayPositionY, 0.5);
+    expect(data.overlayPositionY, 0.0);
   });
 
   testWidgets('QR widget tregon gjendjen boshe pa udhëzuesin e lëvizjes', (
