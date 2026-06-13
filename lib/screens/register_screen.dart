@@ -22,10 +22,20 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmController = TextEditingController();
+  final _qrCodeController = TextEditingController();
   final _authService = AuthService();
   final _databaseService = DatabaseService();
 
   bool _isLoading = false;
+  bool _isLoadingQrConfig = true;
+  bool _requiresQrCodeId = false;
+  String _defaultQrCodeId = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadQrConfiguration();
+  }
 
   @override
   void dispose() {
@@ -33,6 +43,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _usernameController.dispose();
     _passwordController.dispose();
     _confirmController.dispose();
+    _qrCodeController.dispose();
     super.dispose();
   }
 
@@ -97,12 +108,27 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 },
                 onSubmitted: (_) => _register(),
               ),
+              if (_isLoadingQrConfig) ...[
+                const SizedBox(height: 18),
+                const Center(child: CircularProgressIndicator()),
+              ] else if (_requiresQrCodeId) ...[
+                const SizedBox(height: 14),
+                AppTextField(
+                  controller: _qrCodeController,
+                  label: 'QR Code ID',
+                  prefixIcon: Icons.qr_code_2_rounded,
+                  textInputAction: TextInputAction.done,
+                  validator: (value) =>
+                      validateRequired(value, 'Shkruaj QR Code ID.'),
+                  onSubmitted: (_) => _register(),
+                ),
+              ],
               const SizedBox(height: 22),
               AppButton(
                 label: 'Krijo llogari',
                 icon: Icons.person_add_alt_1_rounded,
                 isLoading: _isLoading,
-                onPressed: _register,
+                onPressed: _isLoadingQrConfig ? null : _register,
               ),
               const SizedBox(height: 11),
               AppButton(
@@ -119,24 +145,46 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
+  Future<void> _loadQrConfiguration() async {
+    try {
+      final defaultQrCodeId = await _databaseService.fetchDefaultQrCodeId();
+      if (mounted) {
+        setState(() {
+          _defaultQrCodeId = defaultQrCodeId;
+          _requiresQrCodeId = defaultQrCodeId.isEmpty;
+          _isLoadingQrConfig = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _requiresQrCodeId = true;
+          _isLoadingQrConfig = false;
+        });
+      }
+    }
+  }
+
   Future<void> _register() async {
-    if (_isLoading || !_formKey.currentState!.validate()) {
+    if (_isLoading ||
+        _isLoadingQrConfig ||
+        !_formKey.currentState!.validate()) {
       return;
     }
     setState(() => _isLoading = true);
     try {
-      final credential = await _authService.register(
+      final user = await _authService.register(
         email: _emailController.text,
         username: _usernameController.text,
         password: _passwordController.text,
       );
-      final user = credential.user;
-      if (user != null) {
-        await _databaseService.createDefaultUser(
-          user: user,
-          username: _usernameController.text,
-        );
-      }
+      await _databaseService.createDefaultUser(
+        user: user,
+        username: _usernameController.text,
+        qrCodeId: _defaultQrCodeId.isNotEmpty
+            ? _defaultQrCodeId
+            : _qrCodeController.text,
+      );
       if (mounted) {
         Navigator.of(context).popUntil((route) => route.isFirst);
       }

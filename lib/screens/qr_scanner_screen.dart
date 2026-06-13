@@ -1,9 +1,9 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../app.dart';
+import '../models/app_session_user.dart';
 import '../services/database_service.dart';
 import '../utils/messages.dart';
 import '../widgets/app_button.dart';
@@ -11,7 +11,7 @@ import '../widgets/app_button.dart';
 class QrScannerScreen extends StatefulWidget {
   const QrScannerScreen({required this.user, super.key});
 
-  final User user;
+  final AppSessionUser user;
 
   @override
   State<QrScannerScreen> createState() => _QrScannerScreenState();
@@ -23,7 +23,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
     detectionSpeed: DetectionSpeed.noDuplicates,
     formats: const [BarcodeFormat.qrCode],
     returnImage: false,
-    autoZoom: true,
+    autoZoom: false,
   );
 
   PermissionStatus? _permissionStatus;
@@ -43,7 +43,10 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
   }
 
   Future<void> _requestPermission() async {
-    final status = await Permission.camera.request();
+    final currentStatus = await Permission.camera.status;
+    final status = currentStatus.isDenied
+        ? await Permission.camera.request()
+        : currentStatus;
     if (mounted) {
       setState(() => _permissionStatus = status);
     }
@@ -65,7 +68,10 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
     }
     if (!_permissionStatus!.isGranted) {
       return _PermissionDenied(
-        permanentlyDenied: _permissionStatus!.isPermanentlyDenied,
+        requiresSettings:
+            _permissionStatus!.isPermanentlyDenied ||
+            _permissionStatus!.isRestricted,
+        restricted: _permissionStatus!.isRestricted,
         onRetry: _requestPermission,
       );
     }
@@ -184,11 +190,9 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
                     const SizedBox(width: 10),
                     Expanded(
                       child: AppButton(
-                        label: 'Ruaj kodin',
+                        label: 'Duke u ruajtur',
                         isLoading: _isSaving,
-                        onPressed: _decodedValue.isEmpty
-                            ? null
-                            : _saveScannedValue,
+                        onPressed: null,
                       ),
                     ),
                   ],
@@ -212,16 +216,18 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
         if (mounted) {
           setState(() => _decodedValue = value);
         }
+        await _saveScannedValue(value);
         return;
       }
     }
   }
 
-  Future<void> _saveScannedValue() async {
+  Future<void> _saveScannedValue(String value) async {
     setState(() => _isSaving = true);
     try {
-      await _databaseService.saveScannedValue(widget.user.uid, _decodedValue);
+      await _databaseService.saveQrCodeId(widget.user.uid, value);
       if (mounted) {
+        showAppMessage(context, 'QR Code ID i skanuar u ruajt.');
         Navigator.of(context).pop();
       }
     } catch (_) {
@@ -262,11 +268,13 @@ class _ScanFrame extends StatelessWidget {
 
 class _PermissionDenied extends StatelessWidget {
   const _PermissionDenied({
-    required this.permanentlyDenied,
+    required this.requiresSettings,
+    required this.restricted,
     required this.onRetry,
   });
 
-  final bool permanentlyDenied;
+  final bool requiresSettings;
+  final bool restricted;
   final VoidCallback onRetry;
 
   @override
@@ -293,16 +301,19 @@ class _PermissionDenied extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 9),
-            const Text(
-              'Kamera përdoret vetëm për ta lexuar tekstin e QR kodit. '
-              'Asnjë imazh nuk ruhet ose ngarkohet.',
+            Text(
+              restricted
+                  ? 'Qasja në kamerë është e kufizuar në këtë pajisje. '
+                        'Kontrollo cilësimet e pajisjes.'
+                  : 'Kamera përdoret vetëm për ta lexuar QR kodin. '
+                        'Asnjë imazh nuk ruhet ose ngarkohet.',
               textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.white70, height: 1.45),
+              style: const TextStyle(color: Colors.white70, height: 1.45),
             ),
             const SizedBox(height: 22),
             AppButton(
-              label: permanentlyDenied ? 'Hap cilësimet' : 'Lejo kamerën',
-              onPressed: permanentlyDenied ? openAppSettings : onRetry,
+              label: requiresSettings ? 'Hap cilësimet' : 'Lejo kamerën',
+              onPressed: requiresSettings ? openAppSettings : onRetry,
             ),
             const SizedBox(height: 10),
             AppButton(

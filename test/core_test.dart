@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:kuletadigitalen/app.dart';
 import 'package:kuletadigitalen/models/app_user_data.dart';
+import 'package:kuletadigitalen/screens/qr_settings_screen.dart';
 import 'package:kuletadigitalen/services/auth_service.dart';
 import 'package:kuletadigitalen/utils/albanian_date.dart';
 import 'package:kuletadigitalen/utils/validators.dart';
+import 'package:kuletadigitalen/widgets/brand_mark.dart';
 import 'package:kuletadigitalen/widgets/profile_card.dart';
 import 'package:kuletadigitalen/widgets/qr_ticket_widget.dart';
 import 'package:qr_flutter/qr_flutter.dart';
@@ -35,10 +36,7 @@ void main() {
 
   test('shpjegon qartë kur Firebase Authentication nuk është aktivizuar', () {
     final message = authErrorInAlbanian(
-      FirebaseAuthException(
-        code: 'internal-error',
-        message: 'An internal error has occurred. [ CONFIGURATION_NOT_FOUND ]',
-      ),
+      const RestAuthException('CONFIGURATION_NOT_FOUND'),
     );
 
     expect(message, contains('Firebase Authentication nuk është aktivizuar'));
@@ -53,9 +51,73 @@ void main() {
 
     expect(data.email, 'demo@example.com');
     expect(data.userTypeLabel, AppUserData.defaultUserType);
-    expect(data.activeQrSource, 'manual');
+    expect(data.qrCodeId, isEmpty);
     expect(data.overlayPositionX, 0.25);
     expect(data.overlayPositionY, 0.0);
+  });
+
+  test('modeli përdor vlerën e vetme QR dhe toleron skemën e vjetër', () {
+    final data = AppUserData.fromValue({
+      'qr': {'value': 'QR-I-RI', 'manualValue': 'QR-I-RUAJTUR-NGA-PERDORUESI'},
+    });
+
+    expect(data.qrCodeId, 'QR-I-RI');
+    expect(AppUserData.demo(uid: 'user-123').qrCodeId, isEmpty);
+  });
+
+  testWidgets('cilësimet QR kanë vetëm një fushë dhe butonin e skanimit', (
+    tester,
+  ) async {
+    var savedValue = '';
+    var scanCount = 0;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: QrSettingsContent(
+          qrCodeId: '',
+          onSave: (value) async => savedValue = value,
+          onScan: () async => scanCount++,
+        ),
+      ),
+    );
+
+    expect(find.byType(TextFormField), findsOneWidget);
+    expect(find.text('Skano QR Code'), findsOneWidget);
+    expect(find.text('Burimi aktiv'), findsNothing);
+    expect(find.text('Kodi i skanuar'), findsNothing);
+    expect(find.text('Fshij'), findsNothing);
+
+    await tester.enterText(find.byType(TextFormField), '  QR-MANUAL-123  ');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pump();
+
+    expect(savedValue, 'QR-MANUAL-123');
+
+    await tester.tap(find.text('Skano QR Code'));
+    await tester.pump();
+    expect(scanCount, 1);
+  });
+
+  testWidgets('fusha bosh nuk e mbishkruan QR ID ekzistues', (tester) async {
+    var saveCount = 0;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: QrSettingsContent(
+          qrCodeId: 'QR-EKZISTUES',
+          onSave: (_) async => saveCount++,
+          onScan: () async {},
+        ),
+      ),
+    );
+
+    await tester.enterText(find.byType(TextFormField), '');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pump();
+
+    expect(saveCount, 0);
   });
 
   testWidgets('QR widget tregon gjendjen boshe pa udhëzuesin e lëvizjes', (
@@ -87,7 +149,7 @@ void main() {
         theme: buildAppTheme(),
         home: Scaffold(
           body: QrTicketWidget(
-            qrValue: 'KULETA-DEMO-123',
+            qrValue: 'QR-AKTIV-123',
             overlayImagePath: '',
             positionX: 0.5,
             positionY: 0.5,
@@ -98,6 +160,7 @@ void main() {
     );
 
     expect(find.byType(QrImageView), findsOneWidget);
+    expect(find.byType(BrandMark), findsOneWidget);
   });
 
   testWidgets('paraqitja kryesore ruan hierarkinë vizuale', (tester) async {
@@ -117,7 +180,7 @@ void main() {
               child: Column(
                 children: [
                   QrTicketWidget(
-                    qrValue: 'KULETA-DIGITALE-DEMO-2026',
+                    qrValue: 'QR-PREVIEW-2026',
                     overlayImagePath: '',
                     positionX: 0.5,
                     positionY: 0.42,

@@ -1,7 +1,7 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:permission_handler/permission_handler.dart';
 
-import '../app.dart';
+import '../models/app_session_user.dart';
 import '../models/app_user_data.dart';
 import '../services/database_service.dart';
 import '../utils/messages.dart';
@@ -14,7 +14,7 @@ import 'qr_scanner_screen.dart';
 class QrSettingsScreen extends StatefulWidget {
   const QrSettingsScreen({required this.user, super.key});
 
-  final User user;
+  final AppSessionUser user;
 
   @override
   State<QrSettingsScreen> createState() => _QrSettingsScreenState();
@@ -25,78 +25,139 @@ class _QrSettingsScreenState extends State<QrSettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final fallback = AppUserData.demo(
+      uid: widget.user.uid,
+      email: widget.user.email,
+      username: widget.user.displayName,
+    );
+
     return StreamBuilder<AppUserData>(
+      initialData: fallback,
       stream: _databaseService.watchUser(widget.user.uid),
       builder: (context, snapshot) {
-        if (snapshot.hasError) {
-          return const Scaffold(
-            body: Center(child: Text('Cilësimet nuk mund të ngarkohen.')),
-          );
-        }
-        if (!snapshot.hasData) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
-        }
-        return _QrSettingsForm(
-          user: widget.user,
-          data: snapshot.data!,
-          databaseService: _databaseService,
+        return QrSettingsContent(
+          qrCodeId: (snapshot.data ?? fallback).qrCodeId,
+          onSave: _saveQrCodeId,
+          onScan: _openScanner,
         );
       },
     );
   }
+
+  Future<void> _saveQrCodeId(String value) {
+    return _databaseService.saveQrCodeId(widget.user.uid, value);
+  }
+
+  Future<void> _openScanner() async {
+    final currentStatus = await Permission.camera.status;
+    if (!mounted) {
+      return;
+    }
+
+    if (currentStatus.isRestricted || currentStatus.isPermanentlyDenied) {
+      await _showCameraSettingsDialog(restricted: currentStatus.isRestricted);
+      return;
+    }
+
+    final status = currentStatus.isGranted
+        ? currentStatus
+        : await Permission.camera.request();
+    if (!mounted) {
+      return;
+    }
+
+    if (status.isGranted) {
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => QrScannerScreen(user: widget.user),
+        ),
+      );
+      return;
+    }
+
+    if (status.isRestricted || status.isPermanentlyDenied) {
+      await _showCameraSettingsDialog(restricted: status.isRestricted);
+      return;
+    }
+
+    showAppMessage(
+      context,
+      'Qasja në kamerë nevojitet për të skanuar QR kodin.',
+      isError: true,
+    );
+  }
+
+  Future<void> _showCameraSettingsDialog({required bool restricted}) async {
+    final openSettings = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Lejo përdorimin e kamerës'),
+        content: Text(
+          restricted
+              ? 'Qasja në kamerë është e kufizuar në këtë pajisje. '
+                    'Kontrollo cilësimet e pajisjes.'
+              : 'Qasja në kamerë është çaktivizuar. Hape cilësimet e '
+                    'aplikacionit për ta lejuar.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Anulo'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Hap cilësimet'),
+          ),
+        ],
+      ),
+    );
+    if (openSettings == true) {
+      await openAppSettings();
+    }
+  }
 }
 
-class _QrSettingsForm extends StatefulWidget {
-  const _QrSettingsForm({
-    required this.user,
-    required this.data,
-    required this.databaseService,
+class QrSettingsContent extends StatefulWidget {
+  const QrSettingsContent({
+    required this.qrCodeId,
+    required this.onSave,
+    required this.onScan,
+    super.key,
   });
 
-  final User user;
-  final AppUserData data;
-  final DatabaseService databaseService;
+  final String qrCodeId;
+  final Future<void> Function(String value) onSave;
+  final Future<void> Function() onScan;
 
   @override
-  State<_QrSettingsForm> createState() => _QrSettingsFormState();
+  State<QrSettingsContent> createState() => _QrSettingsContentState();
 }
 
-class _QrSettingsFormState extends State<_QrSettingsForm> {
-  late final TextEditingController _manualController;
-  late String _activeSource;
-  bool _manualEdited = false;
-  bool _isSavingManual = false;
-  bool _isSavingActive = false;
+class _QrSettingsContentState extends State<QrSettingsContent> {
+  late final TextEditingController _controller;
+  late String _lastSavedValue;
+  bool _isEditing = false;
+  bool _isSaving = false;
 
   @override
   void initState() {
     super.initState();
-    _manualController = TextEditingController(text: widget.data.manualQrValue);
-    _manualController.addListener(() => _manualEdited = true);
-    _activeSource = widget.data.activeQrSource == 'scanned'
-        ? 'scanned'
-        : 'manual';
+    _controller = TextEditingController(text: widget.qrCodeId);
+    _lastSavedValue = widget.qrCodeId;
   }
 
   @override
-  void didUpdateWidget(covariant _QrSettingsForm oldWidget) {
+  void didUpdateWidget(covariant QrSettingsContent oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (!_manualEdited &&
-        oldWidget.data.manualQrValue != widget.data.manualQrValue) {
-      _manualController.text = widget.data.manualQrValue;
-    }
-    if (oldWidget.data.activeQrSource != widget.data.activeQrSource) {
-      _activeSource = widget.data.activeQrSource == 'scanned'
-          ? 'scanned'
-          : 'manual';
+    if (!_isEditing && widget.qrCodeId != oldWidget.qrCodeId) {
+      _controller.text = widget.qrCodeId;
+      _lastSavedValue = widget.qrCodeId;
     }
   }
 
   @override
   void dispose() {
-    _manualController.dispose();
+    _controller.dispose();
     super.dispose();
   }
 
@@ -109,122 +170,29 @@ class _QrSettingsFormState extends State<_QrSettingsForm> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const AppHeader(
-                title: 'Cilësimet e QR Kodit',
-                subtitle: 'Zgjidh çfarë paraqet bileta demo',
-                showBack: true,
-              ),
-              const SizedBox(height: 26),
-              _SectionCard(
-                title: 'Kodi manual',
-                subtitle: 'Shkruaj ose ngjit tekstin që do të kodosh.',
-                icon: Icons.edit_note_rounded,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    AppTextField(
-                      controller: _manualController,
-                      label: 'Vlera e QR kodit',
-                      maxLines: 3,
-                      textInputAction: TextInputAction.newline,
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: AppButton(
-                            label: 'Ruaj',
-                            isLoading: _isSavingManual,
-                            onPressed: _saveManual,
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: AppButton(
-                            label: 'Fshij',
-                            style: AppButtonStyle.secondary,
-                            onPressed: widget.data.manualQrValue.isEmpty
-                                ? null
-                                : () => _clear('manual'),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
+              const AppHeader(title: 'Cilësimet e QR Code-it', showBack: true),
+              const SizedBox(height: 28),
+              Focus(
+                onFocusChange: (hasFocus) {
+                  _isEditing = hasFocus;
+                  if (!hasFocus) {
+                    _saveManualValue();
+                  }
+                },
+                child: AppTextField(
+                  controller: _controller,
+                  label: 'QR Code ID',
+                  prefixIcon: Icons.qr_code_2_rounded,
+                  textInputAction: TextInputAction.done,
+                  onSubmitted: (_) => _saveManualValue(),
                 ),
               ),
-              const SizedBox(height: 14),
-              _SectionCard(
-                title: 'Kodi i skanuar',
-                subtitle: widget.data.scannedQrValue.isEmpty
-                    ? 'Nuk është skanuar ende asnjë kod.'
-                    : widget.data.scannedQrValue,
-                icon: Icons.qr_code_scanner_rounded,
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: AppButton(
-                        label: 'Skano QR Kod',
-                        icon: Icons.center_focus_strong_rounded,
-                        onPressed: _openScanner,
-                      ),
-                    ),
-                    if (widget.data.scannedQrValue.isNotEmpty) ...[
-                      const SizedBox(width: 10),
-                      AppButton(
-                        label: 'Fshij',
-                        expand: false,
-                        style: AppButtonStyle.secondary,
-                        onPressed: () => _clear('scanned'),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              const SizedBox(height: 14),
-              _SectionCard(
-                title: 'Burimi aktiv',
-                subtitle: 'Vetëm njëra vlerë shfaqet në biletën demo.',
-                icon: Icons.tune_rounded,
-                child: Column(
-                  children: [
-                    RadioGroup<String>(
-                      groupValue: _activeSource,
-                      onChanged: (value) {
-                        if (value != null) {
-                          setState(() => _activeSource = value);
-                        }
-                      },
-                      child: const Column(
-                        children: [
-                          RadioListTile<String>(
-                            value: 'manual',
-                            title: Text('Përdor kodin manual'),
-                            contentPadding: EdgeInsets.zero,
-                          ),
-                          RadioListTile<String>(
-                            value: 'scanned',
-                            title: Text('Përdor kodin e skanuar'),
-                            contentPadding: EdgeInsets.zero,
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    AppButton(
-                      label: 'Ruaj',
-                      icon: Icons.check_rounded,
-                      isLoading: _isSavingActive,
-                      onPressed: _saveActive,
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 14),
+              const SizedBox(height: 16),
               AppButton(
-                label: 'Kthehu',
-                style: AppButtonStyle.secondary,
-                onPressed: () => Navigator.of(context).pop(),
+                label: 'Skano QR Code',
+                icon: Icons.qr_code_scanner_rounded,
+                isLoading: _isSaving,
+                onPressed: _scan,
               ),
             ],
           ),
@@ -233,161 +201,37 @@ class _QrSettingsFormState extends State<_QrSettingsForm> {
     );
   }
 
-  Future<void> _saveManual() async {
-    final value = _manualController.text.trim();
-    if (value.isEmpty) {
-      showAppMessage(
-        context,
-        'Shkruaj një vlerë para se ta ruash.',
-        isError: true,
-      );
-      return;
-    }
-    setState(() => _isSavingManual = true);
-    try {
-      await widget.databaseService.saveManualValue(widget.user.uid, value);
-      _manualEdited = false;
-      if (mounted) {
-        showAppMessage(context, 'Kodi manual u ruajt.');
-      }
-    } catch (_) {
-      if (mounted) {
-        showAppMessage(context, 'Kodi nuk u ruajt.', isError: true);
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isSavingManual = false);
-      }
+  Future<void> _scan() async {
+    await _saveManualValue();
+    if (mounted) {
+      await widget.onScan();
     }
   }
 
-  Future<void> _saveActive() async {
-    final value = _activeSource == 'manual'
-        ? _manualController.text.trim()
-        : widget.data.scannedQrValue.trim();
-    if (value.isEmpty) {
-      showAppMessage(
-        context,
-        _activeSource == 'manual'
-            ? 'Ruaj fillimisht kodin manual.'
-            : 'Skano fillimisht një QR kod.',
-        isError: true,
-      );
+  Future<void> _saveManualValue() async {
+    if (_isSaving) {
+      return;
+    }
+    final value = _controller.text.trim();
+    if (value.isEmpty || value == _lastSavedValue) {
       return;
     }
 
-    setState(() => _isSavingActive = true);
+    setState(() => _isSaving = true);
     try {
-      if (_activeSource == 'manual' && value != widget.data.manualQrValue) {
-        await widget.databaseService.saveManualValue(widget.user.uid, value);
-      }
-      await widget.databaseService.setActiveQr(
-        uid: widget.user.uid,
-        source: _activeSource,
-        value: value,
-      );
+      await widget.onSave(value);
+      _lastSavedValue = value;
       if (mounted) {
-        showAppMessage(context, 'Burimi aktiv u përditësua.');
+        showAppMessage(context, 'QR Code ID u ruajt.');
       }
     } catch (_) {
       if (mounted) {
-        showAppMessage(context, 'Burimi aktiv nuk u ruajt.', isError: true);
+        showAppMessage(context, 'QR Code ID nuk u ruajt.', isError: true);
       }
     } finally {
       if (mounted) {
-        setState(() => _isSavingActive = false);
+        setState(() => _isSaving = false);
       }
     }
-  }
-
-  Future<void> _clear(String source) async {
-    try {
-      await widget.databaseService.clearQrValue(
-        uid: widget.user.uid,
-        source: source,
-        isActive: widget.data.activeQrSource == source,
-      );
-      if (source == 'manual') {
-        _manualController.clear();
-        _manualEdited = false;
-      }
-      if (mounted) {
-        showAppMessage(context, 'Vlera u fshi.');
-      }
-    } catch (_) {
-      if (mounted) {
-        showAppMessage(context, 'Vlera nuk u fshi.', isError: true);
-      }
-    }
-  }
-
-  Future<void> _openScanner() async {
-    await Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => QrScannerScreen(user: widget.user),
-      ),
-    );
-  }
-}
-
-class _SectionCard extends StatelessWidget {
-  const _SectionCard({
-    required this.title,
-    required this.subtitle,
-    required this.icon,
-    required this.child,
-  });
-
-  final String title;
-  final String subtitle;
-  final IconData icon;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 42,
-                  height: 42,
-                  decoration: BoxDecoration(
-                    color: AppColors.lavender,
-                    borderRadius: BorderRadius.circular(13),
-                  ),
-                  child: Icon(icon, color: AppColors.primary),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        subtitle,
-                        maxLines: 4,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            child,
-          ],
-        ),
-      ),
-    );
   }
 }
