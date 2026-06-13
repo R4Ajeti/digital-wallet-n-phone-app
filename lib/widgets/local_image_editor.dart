@@ -19,6 +19,7 @@ class LocalImageEditor extends StatefulWidget {
     required this.onSave,
     required this.previewIcon,
     this.squarePreview = false,
+    this.autoSaveOnPick = false,
     super.key,
   });
 
@@ -30,6 +31,7 @@ class LocalImageEditor extends StatefulWidget {
   final Future<void> Function(String path) onSave;
   final IconData previewIcon;
   final bool squarePreview;
+  final bool autoSaveOnPick;
 
   @override
   State<LocalImageEditor> createState() => _LocalImageEditorState();
@@ -120,13 +122,15 @@ class _LocalImageEditorState extends State<LocalImageEditor> {
                 ),
               ),
               const SizedBox(height: 22),
-              AppButton(
-                label: 'Ruaj',
-                icon: Icons.save_outlined,
-                isLoading: _isSaving,
-                onPressed: _selectedPath.isEmpty ? null : _save,
-              ),
-              const SizedBox(height: 10),
+              if (!widget.autoSaveOnPick) ...[
+                AppButton(
+                  label: 'Ruaj',
+                  icon: Icons.save_outlined,
+                  isLoading: _isSaving,
+                  onPressed: _selectedPath.isEmpty ? null : _save,
+                ),
+                const SizedBox(height: 10),
+              ],
               AppButton(
                 label: 'Kthehu',
                 style: AppButtonStyle.secondary,
@@ -151,6 +155,9 @@ class _LocalImageEditorState extends State<LocalImageEditor> {
           _selectedPath = path;
           _pickedInSession = true;
         });
+        if (widget.autoSaveOnPick) {
+          await _save();
+        }
       }
     } catch (_) {
       if (mounted) {
@@ -172,7 +179,12 @@ class _LocalImageEditorState extends State<LocalImageEditor> {
     try {
       await widget.onSave(_selectedPath);
       if (mounted) {
-        showAppMessage(context, 'Imazhi u ruajt në pajisje.');
+        showAppMessage(
+          context,
+          widget.autoSaveOnPick
+              ? 'Ikona u ruajt automatikisht.'
+              : 'Imazhi u ruajt në pajisje.',
+        );
       }
     } catch (_) {
       if (mounted) {

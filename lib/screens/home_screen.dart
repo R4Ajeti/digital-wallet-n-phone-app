@@ -1,16 +1,19 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../models/app_session_user.dart';
+import '../models/app_user_data.dart';
+import '../services/database_service.dart';
 import '../theme/home_palette.dart';
 import '../widgets/brand_mark.dart';
 import 'settings_screen.dart';
 import 'ticket_screen.dart';
 
 class HomeScreen extends StatelessWidget {
-  const HomeScreen({required this.user, super.key});
+  HomeScreen({required this.user, super.key});
 
-  final User user;
+  final AppSessionUser user;
+  final DatabaseService _databaseService = DatabaseService();
 
   double _chatFabBottom(BuildContext context) {
     const bottomBarPadding = 12.0;
@@ -79,15 +82,26 @@ class HomeScreen extends StatelessWidget {
                     style: TextStyle(color: Colors.white, fontSize: 17),
                   ),
                   const SizedBox(height: 8),
-                  const Text(
-                    '0.00 €',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 38,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 4,
+                  StreamBuilder<AppUserData>(
+                    initialData: AppUserData.demo(
+                      uid: user.uid,
+                      email: user.email,
+                      username: user.displayName,
                     ),
+                    stream: _databaseService.watchUser(user.uid),
+                    builder: (context, snapshot) {
+                      final balance = snapshot.data?.balance ?? 0.0;
+                      return Text(
+                        '${balance.toStringAsFixed(2)} €',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 38,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 4,
+                        ),
+                      );
+                    },
                   ),
                   const SizedBox(height: 24),
                   Center(
@@ -401,7 +415,7 @@ class _DashboardHeader extends StatelessWidget {
   static const _menuButtonSize = 55.2;
   static const _menuIconSize = 36.0;
 
-  final User user;
+  final AppSessionUser user;
 
   @override
   Widget build(BuildContext context) {

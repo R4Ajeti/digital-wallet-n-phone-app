@@ -1,20 +1,22 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../app.dart';
+import '../models/app_session_user.dart';
 import '../services/auth_service.dart';
 import '../utils/messages.dart';
 import '../widgets/brand_mark.dart';
 import '../widgets/screen_shell.dart';
 import 'change_password_screen.dart';
+import 'balance_settings_screen.dart';
 import 'profile_image_screen.dart';
 import 'qr_overlay_icon_screen.dart';
 import 'qr_settings_screen.dart';
+import 'ticket_expiration_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({required this.user, super.key});
 
-  final User user;
+  final AppSessionUser user;
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -42,6 +44,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
               icon: Icons.qr_code_2_rounded,
               title: 'Cilësimet e QR Kodit',
               onTap: () => _open(QrSettingsScreen(user: widget.user)),
+            ),
+            _MenuTile(
+              icon: Icons.account_balance_wallet_outlined,
+              title: 'Ndrysho bilancin',
+              onTap: () => _open(BalanceSettingsScreen(user: widget.user)),
+            ),
+            _MenuTile(
+              icon: Icons.event_available_rounded,
+              title: 'Ndrysho vlefshmërinë e biletës',
+              onTap: () => _open(TicketExpirationScreen(user: widget.user)),
             ),
             _MenuTile(
               icon: Icons.account_circle_outlined,

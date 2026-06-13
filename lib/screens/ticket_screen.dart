@@ -1,8 +1,7 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../app.dart';
+import '../models/app_session_user.dart';
 import '../models/app_user_data.dart';
 import '../services/database_service.dart';
 import '../services/local_image_service.dart';
@@ -16,7 +15,7 @@ import 'settings_screen.dart';
 class TicketScreen extends StatefulWidget {
   const TicketScreen({required this.user, super.key});
 
-  final User user;
+  final AppSessionUser user;
 
   @override
   State<TicketScreen> createState() => _TicketScreenState();
@@ -26,11 +25,17 @@ class _TicketScreenState extends State<TicketScreen> {
   final _databaseService = DatabaseService();
   final _localImageService = LocalImageService();
 
+  late final AppUserData _fallbackData;
   late final Stream<AppUserData> _userStream;
 
   @override
   void initState() {
     super.initState();
+    _fallbackData = AppUserData.demo(
+      uid: widget.user.uid,
+      email: widget.user.email,
+      username: widget.user.displayName,
+    );
     _userStream = _databaseService.watchUser(widget.user.uid);
     _ensureData();
   }
@@ -42,7 +47,7 @@ class _TicketScreenState extends State<TicketScreen> {
       if (mounted) {
         showAppMessage(
           context,
-          'Të dhënat nuk u përditësuan. Kontrollo internetin.',
+          'Bileta demo u hap. Sinkronizimi online nuk u përditësua.',
           isError: true,
         );
       }
@@ -76,16 +81,11 @@ class _TicketScreenState extends State<TicketScreen> {
             SafeArea(
               bottom: false,
               child: StreamBuilder<AppUserData>(
+                initialData: _fallbackData,
                 stream: _userStream,
                 builder: (context, snapshot) {
-                  if (snapshot.hasError) {
-                    return _ErrorState(onRetry: _ensureData);
-                  }
-                  if (!snapshot.hasData) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
+                  final data = snapshot.data ?? _fallbackData;
 
-                  final data = snapshot.data!;
                   return FutureBuilder<List<String>>(
                     future: Future.wait([
                       _localImageService.resolveAvailablePath(
@@ -137,7 +137,7 @@ class _TicketScreenState extends State<TicketScreen> {
               _HomeHeader(onMenuPressed: _openSettings),
               const SizedBox(height: 30),
               QrTicketWidget(
-                qrValue: data.activeQrValue,
+                qrValue: data.qrCodeId,
                 overlayImagePath: overlayPath,
                 positionX: data.overlayPositionX,
                 positionY: data.overlayPositionY,
@@ -271,47 +271,6 @@ class _HomeHeader extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _ErrorState extends StatelessWidget {
-  const _ErrorState({required this.onRetry});
-
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(28),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              Icons.cloud_off_rounded,
-              color: AppColors.primary,
-              size: 52,
-            ),
-            const SizedBox(height: 14),
-            Text(
-              'Të dhënat nuk u ngarkuan',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Kontrollo internetin dhe provo përsëri.',
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 18),
-            FilledButton.icon(
-              onPressed: onRetry,
-              icon: const Icon(Icons.refresh_rounded),
-              label: const Text('Provo përsëri'),
-            ),
-          ],
-        ),
       ),
     );
   }
