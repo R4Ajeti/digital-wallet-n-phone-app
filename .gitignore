@@ -46,8 +46,13 @@ app.*.map.json
 /android/app/release
 
 experimental-resource/*
+!experimental-resource/icon/
+experimental-resource/icon/*
+!experimental-resource/icon/stema-komunes-prishtines.png
 
 # Local and generated files
 .metadata
 android/local.properties
 /android/.gradle/
+commands.txt
+/test/failures/

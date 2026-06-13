@@ -3,33 +3,24 @@ import 'package:flutter/material.dart';
 class BrandMark extends StatelessWidget {
   const BrandMark({this.size = 48, super.key});
 
+  /// Target height of the emblem. Width follows the PNG aspect ratio.
   final double size;
+
+  static const assetPath =
+      'experimental-resource/icon/stema-komunes-prishtines.png';
+  static const assetWidth = 609.0;
+  static const assetHeight = 781.0;
+  static const aspectRatio = assetWidth / assetHeight;
+
+  static double widthForHeight(double height) => height * aspectRatio;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: size,
+    return Image.asset(
+      assetPath,
       height: size,
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFFC23B4F), Color(0xFF151116)],
-        ),
-        borderRadius: BorderRadius.circular(size * 0.22),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFFC23B4F).withValues(alpha: 0.22),
-            blurRadius: 18,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Icon(
-        Icons.shield_outlined,
-        color: Colors.white,
-        size: size * 0.54,
-      ),
+      width: widthForHeight(size),
+      fit: BoxFit.contain,
     );
   }
 }
