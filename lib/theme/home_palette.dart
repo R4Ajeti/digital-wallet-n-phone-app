@@ -20,6 +20,6 @@ class HomePalette {
   static const presentMid = Color(0xFF762D2F);
   static const presentRight = Color(0xFF4D1D1E);
 
-  static const qrTop = Color(0xFF8B1A2B);
-  static const qrBottom = Color(0xFF09080A);
+  static const qrTop = Color(0xFFB0446B);
+  static const qrBottom = Color(0xFF080507);
 }

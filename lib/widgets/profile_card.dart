@@ -4,6 +4,10 @@ import 'package:flutter/material.dart';
 
 import '../app.dart';
 
+const _ticketInk = Color(0xFF2D2D2D);
+const _ticketMuted = Color(0xFF575757);
+const _ticketBorder = Color(0xFFD9D9D9);
+
 class ProfileCard extends StatelessWidget {
   const ProfileCard({
     required this.userTypeLabel,
@@ -21,26 +25,35 @@ class ProfileCard extends StatelessWidget {
     final safeImageScale = imageScale.clamp(0.5, 2.0);
 
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Row(
-          children: [
-            _ProfileImage(path: imagePath, scale: safeImageScale),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Text(
-                userTypeLabel,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: AppColors.ink,
-                  fontSize: 14,
-                  height: 1.35,
-                  fontWeight: FontWeight.w400,
+      color: Colors.white,
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(18),
+        side: const BorderSide(color: _ticketBorder),
+      ),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 144),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+          child: Row(
+            children: [
+              _ProfileImage(path: imagePath, scale: safeImageScale),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Text(
+                  userTypeLabel,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: _ticketMuted,
+                    fontSize: 14,
+                    height: 1.35,
+                    fontWeight: FontWeight.w400,
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(width: 6),
-          ],
+              const SizedBox(width: 6),
+            ],
+          ),
         ),
       ),
     );
@@ -58,11 +71,11 @@ class _ProfileImage extends StatelessWidget {
     final hasImage = path.isNotEmpty && File(path).existsSync();
 
     return Container(
-      width: 78 * scale,
-      height: 88 * scale,
+      width: 74 * scale,
+      height: 99 * scale,
       decoration: BoxDecoration(
         color: AppColors.lavender,
-        borderRadius: BorderRadius.circular(18 * scale),
+        borderRadius: BorderRadius.circular(8),
       ),
       clipBehavior: Clip.antiAlias,
       child: hasImage
@@ -101,25 +114,27 @@ class TicketValidityCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
+      color: Colors.white,
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(18),
+        side: const BorderSide(color: _ticketBorder),
+      ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 11),
         child: Column(
           children: [
             const Text(
               'Bileta juaj është e vlefshme deri më',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                color: AppColors.ink,
-                fontSize: 14,
-                height: 1.35,
-              ),
+              style: TextStyle(color: _ticketMuted, fontSize: 15, height: 1.35),
             ),
             const SizedBox(height: 5),
             Text(
               expirationText.isEmpty ? 'Duke u përditësuar…' : expirationText,
               textAlign: TextAlign.center,
               style: const TextStyle(
-                color: AppColors.ink,
+                color: _ticketInk,
                 fontSize: 24,
                 height: 1.15,
                 fontWeight: FontWeight.w800,

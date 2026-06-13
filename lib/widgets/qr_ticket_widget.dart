@@ -92,8 +92,8 @@ class _QrTicketWidgetState extends State<QrTicketWidget>
     }
 
     if (initial) {
-      _positionX = _random.nextDouble().clamp(0.0, 1.0);
-      _positionY = _random.nextDouble().clamp(0.0, 1.0);
+      _positionX = 0.5;
+      _positionY = 0.5;
     }
 
     _setRandomDirection();
