@@ -1,66 +1,79 @@
-import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:image_picker/image_picker.dart';
-import 'package:path/path.dart' as path;
-import 'package:path_provider/path_provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+
+import 'local_image_storage.dart';
 
 enum LocalImageKind { profile, overlay }
+
+class LocalImageSelection {
+  const LocalImageSelection({required this.reference, required this.bytes});
+
+  final String reference;
+  final Uint8List bytes;
+}
+
+class LocalImageException implements Exception {
+  const LocalImageException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
+}
 
 class LocalImageService {
   LocalImageService({ImagePicker? imagePicker})
     : _imagePicker = imagePicker ?? ImagePicker();
 
+  static const _maximumImageBytes = 1500000;
+
   final ImagePicker _imagePicker;
 
-  Future<String?> pickAndPersist({
+  Future<LocalImageSelection?> pickAndPersist({
     required String uid,
     required LocalImageKind kind,
   }) async {
     final picked = await _imagePicker.pickImage(
       source: ImageSource.gallery,
-      imageQuality: 88,
-      maxWidth: 1800,
+      imageQuality: 78,
+      maxWidth: 1000,
     );
     if (picked == null) {
       return null;
     }
 
-    final documents = await getApplicationDocumentsDirectory();
-    final folder = Directory(path.join(documents.path, 'kuleta_digitale', uid));
-    await folder.create(recursive: true);
+    final length = await picked.length();
+    if (length > _maximumImageBytes) {
+      throw const LocalImageException(
+        'Imazhi është shumë i madh. Zgjidh një imazh më të vogël se 1.5 MB.',
+      );
+    }
 
-    final extension = path.extension(picked.name).toLowerCase();
-    final safeExtension = extension.isEmpty ? '.jpg' : extension;
-    final fileName =
-        '${kind.name}_${DateTime.now().millisecondsSinceEpoch}$safeExtension';
-    final savedFile = await File(
-      picked.path,
-    ).copy(path.join(folder.path, fileName));
-
-    final preferences = await SharedPreferences.getInstance();
-    await preferences.setString(_cacheKey(uid, kind), savedFile.path);
-    return savedFile.path;
+    try {
+      final reference = await persistLocalImage(
+        picked: picked,
+        uid: uid,
+        kind: kind.name,
+      );
+      final bytes = await picked.readAsBytes();
+      return LocalImageSelection(reference: reference, bytes: bytes);
+    } catch (_) {
+      throw const LocalImageException(
+        'Imazhi nuk mund të ruhej në këtë pajisje.',
+      );
+    }
   }
 
-  Future<String> resolveAvailablePath({
+  Future<Uint8List?> resolveAvailableBytes({
     required String uid,
     required LocalImageKind kind,
     required String firebasePath,
   }) async {
-    if (firebasePath.isNotEmpty && await File(firebasePath).exists()) {
-      return firebasePath;
-    }
-
-    final preferences = await SharedPreferences.getInstance();
-    final cachedPath = preferences.getString(_cacheKey(uid, kind)) ?? '';
-    if (cachedPath.isNotEmpty && await File(cachedPath).exists()) {
-      return cachedPath;
-    }
-    return '';
-  }
-
-  String _cacheKey(String uid, LocalImageKind kind) {
-    return 'local_image_${kind.name}_$uid';
+    return readLocalImage(
+      uid: uid,
+      kind: kind.name,
+      firebaseReference: firebasePath,
+    );
   }
 }

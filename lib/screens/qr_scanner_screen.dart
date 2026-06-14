@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -33,7 +34,11 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
   @override
   void initState() {
     super.initState();
-    _requestPermission();
+    if (kIsWeb) {
+      _permissionStatus = PermissionStatus.granted;
+    } else {
+      _requestPermission();
+    }
   }
 
   @override
@@ -43,6 +48,10 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
   }
 
   Future<void> _requestPermission() async {
+    if (kIsWeb) {
+      setState(() => _permissionStatus = PermissionStatus.granted);
+      return;
+    }
     final currentStatus = await Permission.camera.status;
     final status = currentStatus.isDenied
         ? await Permission.camera.request()
@@ -111,14 +120,15 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
                   ],
                 ),
               ),
-              IconButton(
-                tooltip: 'Drita',
-                onPressed: _scannerController.toggleTorch,
-                icon: const Icon(
-                  Icons.flashlight_on_rounded,
-                  color: Colors.white,
+              if (!kIsWeb)
+                IconButton(
+                  tooltip: 'Drita',
+                  onPressed: _scannerController.toggleTorch,
+                  icon: const Icon(
+                    Icons.flashlight_on_rounded,
+                    color: Colors.white,
+                  ),
                 ),
-              ),
             ],
           ),
         ),
@@ -302,7 +312,10 @@ class _PermissionDenied extends StatelessWidget {
             ),
             const SizedBox(height: 9),
             Text(
-              restricted
+              kIsWeb
+                  ? 'Lejo kamerën nga kontrolli i lejeve të shfletuesit dhe '
+                        'provo përsëri. PWA-ja duhet të hapet me HTTPS.'
+                  : restricted
                   ? 'Qasja në kamerë është e kufizuar në këtë pajisje. '
                         'Kontrollo cilësimet e pajisjes.'
                   : 'Kamera përdoret vetëm për ta lexuar QR kodin. '
@@ -312,8 +325,12 @@ class _PermissionDenied extends StatelessWidget {
             ),
             const SizedBox(height: 22),
             AppButton(
-              label: requiresSettings ? 'Hap cilësimet' : 'Lejo kamerën',
-              onPressed: requiresSettings ? openAppSettings : onRetry,
+              label: requiresSettings && !kIsWeb
+                  ? 'Hap cilësimet'
+                  : 'Provo përsëri',
+              onPressed: requiresSettings && !kIsWeb
+                  ? openAppSettings
+                  : onRetry,
             ),
             const SizedBox(height: 10),
             AppButton(
@@ -343,6 +360,9 @@ class _ScannerError extends StatelessWidget {
           child: Text(
             message?.isNotEmpty == true
                 ? 'Kamera nuk u hap: $message'
+                : kIsWeb
+                ? 'Kamera nuk mund të hapej. Kontrollo lejen e kamerës në '
+                      'shfletues dhe sigurohu që faqja përdor HTTPS.'
                 : 'Kamera nuk mund të hapej.',
             textAlign: TextAlign.center,
             style: const TextStyle(color: Colors.white),

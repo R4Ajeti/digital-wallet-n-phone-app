@@ -1,6 +1,6 @@
 # Kuleta Digitale
 
-A Flutter demonstration app for Android and iOS, connected to Firebase
+A Flutter demonstration app for Android, iOS, and the web, connected to Firebase
 Authentication and Firebase Realtime Database.
 
 > This app is not an official service and does not represent any municipality,
@@ -18,6 +18,10 @@ Authentication and Firebase Realtime Database.
 - Profile pictures and QR overlay images stored only on the device.
 - Albanian app interface and messages.
 - Android and iOS launcher icons.
+- Installable Progressive Web App support for iPhone and iPad.
+
+For web deployment and step-by-step iPhone installation, see
+[`README_PWA.MD`](README_PWA.MD).
 
 ## Application Identifiers
 
@@ -38,7 +42,7 @@ Authentication and Firebase Realtime Database.
 - `mobile_scanner` for QR code scanning
 - `permission_handler` for camera permission
 - `shared_preferences` for sessions, caching, and offline writes
-- `image_picker` and `path_provider` for local images
+- `image_picker`, `path_provider`, and browser storage for local images
 
 The app does not depend on FlutterFire at runtime. Firebase Authentication and
 Realtime Database are accessed directly through their REST APIs. The app does

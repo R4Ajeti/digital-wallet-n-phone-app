@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 
+import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/app_session_user.dart';
@@ -331,19 +331,17 @@ class DatabaseService {
   }
 
   Future<Object?> _sendRequest(String method, Uri uri, {Object? data}) async {
-    final client = HttpClient()..connectionTimeout = const Duration(seconds: 8);
+    final client = http.Client();
     try {
-      final request = await client
-          .openUrl(method, uri)
-          .timeout(const Duration(seconds: 8));
+      final request = http.Request(method, uri);
       if (data != null) {
-        request.headers.contentType = ContentType.json;
-        request.write(jsonEncode(data));
+        request.headers['Content-Type'] = 'application/json; charset=utf-8';
+        request.body = jsonEncode(data);
       }
-      final response = await request.close().timeout(
-        const Duration(seconds: 12),
-      );
-      final text = await response.transform(utf8.decoder).join();
+      final response = await client
+          .send(request)
+          .timeout(const Duration(seconds: 12));
+      final text = await response.stream.bytesToString();
       final decoded = text.isEmpty ? null : jsonDecode(text);
       if (response.statusCode < 200 || response.statusCode >= 300) {
         final message = decoded is Map ? decoded['error']?.toString() : null;
@@ -352,10 +350,10 @@ class DatabaseService {
       return decoded;
     } on TimeoutException {
       throw const DatabaseRestException('Database request timed out.');
-    } on SocketException {
+    } on http.ClientException {
       throw const DatabaseRestException('Network unavailable.');
     } finally {
-      client.close(force: true);
+      client.close();
     }
   }
 

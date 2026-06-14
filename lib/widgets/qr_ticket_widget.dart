@@ -1,5 +1,5 @@
-import 'dart:io';
 import 'dart:math' as math;
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
@@ -12,7 +12,7 @@ import 'brand_mark.dart';
 class QrTicketWidget extends StatefulWidget {
   const QrTicketWidget({
     required this.qrValue,
-    required this.overlayImagePath,
+    required this.overlayImageBytes,
     required this.positionX,
     required this.positionY,
     required this.onPositionSaved,
@@ -22,7 +22,7 @@ class QrTicketWidget extends StatefulWidget {
   });
 
   final String qrValue;
-  final String overlayImagePath;
+  final Uint8List? overlayImageBytes;
   final double positionX;
   final double positionY;
   final Future<void> Function(double x, double y) onPositionSaved;
@@ -252,7 +252,7 @@ class _QrTicketWidgetState extends State<QrTicketWidget>
               width: _iconWidth,
               height: _iconHeight,
               child: widget.animateOverlay
-                  ? _QrOverlayIcon(path: widget.overlayImagePath)
+                  ? _QrOverlayIcon(bytes: widget.overlayImageBytes)
                   : GestureDetector(
                       onPanStart: (_) => setState(() => _dragging = true),
                       onPanUpdate: (details) {
@@ -272,7 +272,7 @@ class _QrTicketWidgetState extends State<QrTicketWidget>
                         });
                       },
                       onPanEnd: (_) => _savePosition(),
-                      child: _QrOverlayIcon(path: widget.overlayImagePath),
+                      child: _QrOverlayIcon(bytes: widget.overlayImageBytes),
                     ),
             ),
           ],
@@ -290,17 +290,15 @@ class _QrTicketWidgetState extends State<QrTicketWidget>
 }
 
 class _QrOverlayIcon extends StatelessWidget {
-  const _QrOverlayIcon({required this.path});
+  const _QrOverlayIcon({required this.bytes});
 
-  final String path;
+  final Uint8List? bytes;
 
   @override
   Widget build(BuildContext context) {
-    final hasImage = path.isNotEmpty && File(path).existsSync();
-
-    if (hasImage) {
-      return Image.file(
-        File(path),
+    if (bytes != null) {
+      return Image.memory(
+        bytes!,
         fit: BoxFit.contain,
         errorBuilder: (_, _, _) => const _DefaultOverlayIcon(),
       );

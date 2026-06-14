@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 
@@ -11,13 +11,13 @@ const _ticketBorder = Color(0xFFD9D9D9);
 class ProfileCard extends StatelessWidget {
   const ProfileCard({
     required this.userTypeLabel,
-    required this.imagePath,
+    required this.imageBytes,
     this.imageScale = 1,
     super.key,
   });
 
   final String userTypeLabel;
-  final String imagePath;
+  final Uint8List? imageBytes;
   final double imageScale;
 
   @override
@@ -37,7 +37,7 @@ class ProfileCard extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
           child: Row(
             children: [
-              _ProfileImage(path: imagePath, scale: safeImageScale),
+              _ProfileImage(bytes: imageBytes, scale: safeImageScale),
               const SizedBox(width: 14),
               Expanded(
                 child: Text(
@@ -61,15 +61,13 @@ class ProfileCard extends StatelessWidget {
 }
 
 class _ProfileImage extends StatelessWidget {
-  const _ProfileImage({required this.path, required this.scale});
+  const _ProfileImage({required this.bytes, required this.scale});
 
-  final String path;
+  final Uint8List? bytes;
   final double scale;
 
   @override
   Widget build(BuildContext context) {
-    final hasImage = path.isNotEmpty && File(path).existsSync();
-
     return Container(
       width: 74 * scale,
       height: 99 * scale,
@@ -78,9 +76,9 @@ class _ProfileImage extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
       ),
       clipBehavior: Clip.antiAlias,
-      child: hasImage
-          ? Image.file(
-              File(path),
+      child: bytes != null
+          ? Image.memory(
+              bytes!,
               fit: BoxFit.cover,
               errorBuilder: (_, _, _) => _ProfileFallback(scale: scale),
             )
