@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import '../services/database_service.dart';
 import '../utils/messages.dart';
+import '../utils/navigation.dart';
 import '../utils/validators.dart';
 import '../widgets/app_button.dart';
 import '../widgets/app_text_field.dart';
@@ -134,9 +135,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               AppButton(
                 label: 'Kthehu',
                 style: AppButtonStyle.secondary,
-                onPressed: _isLoading
-                    ? null
-                    : () => Navigator.of(context).pop(),
+                onPressed: () => maybePopRoute(context),
               ),
             ],
           ),

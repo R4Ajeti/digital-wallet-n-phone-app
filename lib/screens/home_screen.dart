@@ -88,7 +88,7 @@ class HomeScreen extends StatelessWidget {
                       email: user.email,
                       username: user.displayName,
                     ),
-                    stream: _databaseService.watchUser(user.uid),
+                    stream: _databaseService.watchUser(user),
                     builder: (context, snapshot) {
                       final balance = snapshot.data?.balance ?? 0.0;
                       return Text(
@@ -410,7 +410,7 @@ class _ChatFabPainter extends CustomPainter {
 class _DashboardHeader extends StatelessWidget {
   const _DashboardHeader({required this.user});
 
-  static const _headerHeight = 48.0;
+  static const _headerHeight = 56.0;
   static const _headerTextFontSize = 16.0;
   static const _menuButtonSize = 55.2;
   static const _menuIconSize = 36.0;

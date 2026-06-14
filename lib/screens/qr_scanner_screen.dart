@@ -235,7 +235,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
   Future<void> _saveScannedValue(String value) async {
     setState(() => _isSaving = true);
     try {
-      await _databaseService.saveQrCodeId(widget.user.uid, value);
+      await _databaseService.saveQrCodeId(widget.user, value);
       if (mounted) {
         showAppMessage(context, 'QR Code ID i skanuar u ruajt.');
         Navigator.of(context).pop();

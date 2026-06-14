@@ -40,6 +40,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
               showBack: true,
             ),
             const SizedBox(height: 28),
+            if (widget.user.isAnonymous)
+              Container(
+                margin: const EdgeInsets.only(bottom: 16),
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: AppColors.accentSoft,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: const Text(
+                  'Je në hapësirën e përbashkët të mysafirit. Ndryshimet në '
+                  'kuletë dhe QR shihen nga çdo mysafir; fotografia jote '
+                  'mbetet vetëm në këtë pajisje.',
+                  style: TextStyle(color: AppColors.ink, height: 1.4),
+                ),
+              ),
             _MenuTile(
               icon: Icons.qr_code_2_rounded,
               title: 'Cilësimet e QR Kodit',
@@ -60,16 +75,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
               title: 'Ndrysho fotografinë',
               onTap: () => _open(ProfileImageScreen(user: widget.user)),
             ),
-            _MenuTile(
-              icon: Icons.layers_outlined,
-              title: 'Ndrysho ikonën e QR Kodit',
-              onTap: () => _open(QrOverlayIconScreen(user: widget.user)),
-            ),
-            _MenuTile(
-              icon: Icons.password_rounded,
-              title: 'Ndrysho fjalëkalimin',
-              onTap: () => _open(const ChangePasswordScreen()),
-            ),
+            if (!widget.user.isAnonymous)
+              _MenuTile(
+                icon: Icons.layers_outlined,
+                title: 'Ndrysho ikonën e QR Kodit',
+                onTap: () => _open(QrOverlayIconScreen(user: widget.user)),
+              ),
+            if (widget.user.canChangePassword)
+              _MenuTile(
+                key: const Key('change-password-tile'),
+                icon: Icons.password_rounded,
+                title: 'Ndrysho fjalëkalimin',
+                onTap: () => _open(const ChangePasswordScreen()),
+              ),
             _MenuTile(
               icon: Icons.logout_rounded,
               title: _isLoggingOut ? 'Duke dalë…' : 'Dil nga aplikacioni',
@@ -133,6 +151,7 @@ class _MenuTile extends StatelessWidget {
     required this.title,
     required this.onTap,
     this.color = AppColors.primary,
+    super.key,
   });
 
   final IconData icon;

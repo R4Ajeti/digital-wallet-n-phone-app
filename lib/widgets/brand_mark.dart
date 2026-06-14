@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../utils/navigation.dart';
+
 class BrandMark extends StatelessWidget {
   const BrandMark({this.size = 48, super.key});
 
@@ -46,7 +48,7 @@ class AppHeader extends StatelessWidget {
         if (showBack) ...[
           IconButton.filledTonal(
             tooltip: 'Kthehu',
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: () => maybePopRoute(context),
             icon: const Icon(Icons.arrow_back_rounded),
           ),
           const SizedBox(width: 10),

@@ -9,27 +9,52 @@ import '../models/app_user_data.dart';
 import '../utils/albanian_date.dart';
 import 'auth_service.dart';
 
+typedef DatabaseHttpClientFactory = http.Client Function();
+
 class DatabaseService {
-  DatabaseService({AuthService? authService})
-    : _authService = authService ?? AuthService();
+  DatabaseService({
+    AuthService? authService,
+    DatabaseHttpClientFactory? clientFactory,
+  }) : _authService = authService ?? AuthService(),
+       _clientFactory = clientFactory ?? http.Client.new;
 
   static const _databaseUrl =
       'https://kuleta-digitale-n-db-default-rtdb.europe-west1.firebasedatabase.app';
+  static const sharedGuestPath = 'sharedGuest/default';
   static final _controllers = <String, StreamController<AppUserData>>{};
+  static final _guestRefreshTimers = <String, Timer>{};
 
   final AuthService _authService;
+  final DatabaseHttpClientFactory _clientFactory;
 
-  Stream<AppUserData> watchUser(String uid) {
-    final controller = _controllers.putIfAbsent(
-      uid,
-      () => StreamController<AppUserData>.broadcast(),
-    );
-    unawaited(_primeUser(uid));
+  Stream<AppUserData> watchUser(AppSessionUser user) {
+    final dataKey = user.dataKey;
+    final controller = _controllers.putIfAbsent(dataKey, () {
+      late final StreamController<AppUserData> created;
+      created = StreamController<AppUserData>.broadcast(
+        onCancel: () {
+          if (!created.hasListener) {
+            _guestRefreshTimers.remove(dataKey)?.cancel();
+          }
+        },
+      );
+      return created;
+    });
+    unawaited(_primeUser(user));
+    if (user.isAnonymous) {
+      _guestRefreshTimers.putIfAbsent(
+        dataKey,
+        () => Timer.periodic(
+          const Duration(seconds: 10),
+          (_) => unawaited(_primeUser(user)),
+        ),
+      );
+    }
     return controller.stream;
   }
 
-  Future<AppUserData> cachedUser(String uid) async {
-    return AppUserData.fromValue(await _cachedMap(uid));
+  Future<AppUserData> cachedUser(AppSessionUser user) async {
+    return AppUserData.fromValue(await _cachedMap(user.dataKey));
   }
 
   Future<String> fetchDefaultQrCodeId() async {
@@ -42,6 +67,11 @@ class DatabaseService {
     required String username,
     String qrCodeId = '',
   }) async {
+    if (user.isAnonymous) {
+      throw const DatabaseRestException(
+        'Anonymous users must use the shared guest workspace.',
+      );
+    }
     final now = DateTime.now();
     final expiration = oneMonthFrom(now);
     final timestamp = now.toUtc().toIso8601String();
@@ -81,31 +111,37 @@ class DatabaseService {
       'updatedAt': timestamp,
     };
 
-    await _cacheAndEmit(user.uid, data);
+    await _cacheAndEmit(user.dataKey, data);
     try {
-      await _put('users/${user.uid}.json', data);
+      await _put('${_dataPath(user)}.json', data);
     } catch (_) {
-      await _queueSet(user.uid, data);
+      await _queueSet(user.dataKey, data);
     }
   }
 
   Future<void> ensureUserData(AppSessionUser user) async {
-    if (!await flushPendingWrites(user.uid)) {
+    if (user.isAnonymous) {
+      await _ensureSharedGuestData(user);
+      return;
+    }
+
+    final dataKey = user.dataKey;
+    if (!await flushPendingWrites(user)) {
       return;
     }
     Map<String, Object?> data;
     try {
-      data = _map(await _get('users/${user.uid}.json'));
+      data = _map(await _get('${_dataPath(user)}.json'));
     } catch (_) {
-      final cached = await _cachedMap(user.uid);
+      final cached = await _cachedMap(dataKey);
       if (cached.isEmpty) {
-        await _cacheAndEmit(user.uid, _defaultUserMap(user));
+        await _cacheAndEmit(dataKey, _defaultUserMap(user));
       }
       return;
     }
 
     if (data.isEmpty) {
-      final cached = await _cachedMap(user.uid);
+      final cached = await _cachedMap(dataKey);
       final existingQrCodeId = AppUserData.fromValue(cached).qrCodeId;
       await createDefaultUser(
         user: user,
@@ -168,16 +204,120 @@ class DatabaseService {
 
     if (updates.isNotEmpty) {
       updates['updatedAt'] = now.toUtc().toIso8601String();
-      await _update(user.uid, updates);
-      data = await _cachedMap(user.uid);
+      await _cacheAndEmit(dataKey, data);
+      await _update(user, updates);
+      data = await _cachedMap(dataKey);
     } else {
-      await _cacheAndEmit(user.uid, data);
+      await _cacheAndEmit(dataKey, data);
     }
   }
 
-  Future<bool> flushPendingWrites(String uid) async {
+  Future<void> _ensureSharedGuestData(AppSessionUser user) async {
+    final dataKey = user.dataKey;
+    if (!await flushPendingWrites(user)) {
+      return;
+    }
+
+    Map<String, Object?> data;
+    try {
+      data = _map(await _get('${_dataPath(user)}.json'));
+    } catch (_) {
+      final cached = await _cachedMap(dataKey);
+      if (cached.isEmpty) {
+        await _cacheAndEmit(dataKey, _defaultUserMap(user, sharedGuest: true));
+      }
+      return;
+    }
+
+    if (data.isEmpty) {
+      var qrCodeId = '';
+      try {
+        qrCodeId = await fetchDefaultQrCodeId();
+      } catch (_) {
+        qrCodeId = AppUserData.fromValue(await _cachedMap(dataKey)).qrCodeId;
+      }
+      final candidate = _defaultUserMap(
+        user,
+        sharedGuest: true,
+        qrCodeId: qrCodeId,
+      );
+
+      try {
+        final created = await _putIfAbsent(
+          '${_dataPath(user)}.json',
+          candidate,
+        );
+        data = created
+            ? candidate
+            : _map(await _get('${_dataPath(user)}.json'));
+      } catch (_) {
+        await _cacheAndEmit(dataKey, candidate);
+        return;
+      }
+    }
+
+    final now = DateTime.now();
+    final expiration = oneMonthFrom(now);
+    final ticket = _map(data['ticket']);
+    final qr = _map(data['qr']);
+    final overlay = _map(data['qrOverlay']);
+    final settings = _map(data['settings']);
+    final updates = <String, Object?>{};
+
+    void addIfMissing(String path, Object? currentValue, Object defaultValue) {
+      if (currentValue == null || currentValue.toString().trim().isEmpty) {
+        updates[path] = defaultValue;
+      }
+    }
+
+    addIfMissing('username', data['username'], 'Mysafir');
+    addIfMissing(
+      'userTypeLabel',
+      data['userTypeLabel'],
+      AppUserData.defaultUserType,
+    );
+    if (_map(data['wallet'])['balance'] == null) {
+      updates['wallet/balance'] = 0.0;
+    }
+    if (ticket['expiresAt'] == null) {
+      updates['ticket/expiresAt'] = expiration.toIso8601String();
+    }
+    if (ticket['expiresAtText'] == null) {
+      updates['ticket/expiresAtText'] = formatAlbanianDate(expiration);
+    }
+    if (qr['value'] == null) {
+      updates['qr/value'] = '';
+    }
+    addIfMissing('qr/updatedAt', qr['updatedAt'], _timestamp);
+    addIfMissing('qrOverlay/type', overlay['type'], 'default');
+    if (overlay['positionX'] == null) {
+      updates['qrOverlay/positionX'] = 0.0;
+    }
+    if (overlay['positionY'] == null) {
+      updates['qrOverlay/positionY'] = 0.0;
+    }
+    addIfMissing('qrOverlay/updatedAt', overlay['updatedAt'], _timestamp);
+    if (settings['language'] == null) {
+      updates['settings/language'] = 'sq';
+    }
+    if (settings['demoMode'] == null) {
+      updates['settings/demoMode'] = true;
+    }
+    addIfMissing('createdAt', data['createdAt'], _timestamp);
+
+    if (updates.isEmpty) {
+      await _cacheAndEmit(dataKey, data);
+    } else {
+      await _cacheAndEmit(dataKey, data);
+      await _update(user, updates);
+    }
+  }
+
+  Future<bool> flushPendingWrites(AppSessionUser user) async {
+    final dataKey = user.dataKey;
+    final dataPath = _dataPath(user);
     final preferences = await SharedPreferences.getInstance();
-    final pending = preferences.getStringList(_pendingKey(uid)) ?? const [];
+    final pending = preferences.getStringList(_pendingKey(dataKey)) ?? const [];
     if (pending.isEmpty) {
       return true;
     }
@@ -189,9 +329,12 @@ class DatabaseService {
         final type = decoded['type']?.toString() ?? 'patch';
         final data = _map(decoded['data']);
         if (type == 'set') {
-          await _put('users/$uid.json', data);
+          if (user.isAnonymous) {
+            continue;
+          }
+          await _put('$dataPath.json', data);
         } else {
-          await _patch('users/$uid.json', data);
+          await _patch('$dataPath.json', data);
         }
       } catch (_) {
         remaining.add(item);
@@ -199,35 +342,35 @@ class DatabaseService {
     }
 
     if (remaining.isEmpty) {
-      await preferences.remove(_pendingKey(uid));
+      await preferences.remove(_pendingKey(dataKey));
     } else {
-      await preferences.setStringList(_pendingKey(uid), remaining);
+      await preferences.setStringList(_pendingKey(dataKey), remaining);
     }
     return remaining.isEmpty;
   }
 
-  Future<void> saveBalance(String uid, double balance) {
-    return _update(uid, {'wallet/balance': balance.clamp(0.0, 999999.0)});
+  Future<void> saveBalance(AppSessionUser user, double balance) {
+    return _update(user, {'wallet/balance': balance.clamp(0.0, 999999.0)});
   }
 
-  Future<void> saveTicketExpiration(String uid, DateTime expiration) {
+  Future<void> saveTicketExpiration(AppSessionUser user, DateTime expiration) {
     final normalized = DateTime(
       expiration.year,
       expiration.month,
       expiration.day,
     );
-    return _update(uid, {
+    return _update(user, {
       'ticket/expiresAt': normalized.toIso8601String(),
       'ticket/expiresAtText': formatAlbanianDate(normalized),
     });
   }
 
-  Future<void> saveQrCodeId(String uid, String value) {
+  Future<void> saveQrCodeId(AppSessionUser user, String value) {
     final normalized = value.trim();
     if (normalized.isEmpty) {
       throw ArgumentError.value(value, 'value', 'QR code ID cannot be empty.');
     }
-    return _update(uid, {
+    return _update(user, {
       'qr/value': normalized,
       'qr/manualValue': null,
       'qr/scannedValue': null,
@@ -237,64 +380,84 @@ class DatabaseService {
     });
   }
 
-  Future<void> saveProfileImagePath(String uid, String path) {
-    return _update(uid, {'profile/localImagePath': path});
+  Future<void> saveProfileImagePath(AppSessionUser user, String path) {
+    if (user.isAnonymous) {
+      return Future<void>.value();
+    }
+    return _update(user, {'profile/localImagePath': path});
   }
 
-  Future<void> saveOverlayImagePath(String uid, String path) {
-    return _update(uid, {
+  Future<void> saveOverlayImagePath(AppSessionUser user, String path) {
+    if (user.isAnonymous) {
+      throw const DatabaseRestException(
+        'Guest QR overlays use the shared bundled icon.',
+      );
+    }
+    return _update(user, {
       'qrOverlay/localImagePath': path,
       'qrOverlay/updatedAt': _timestamp,
     });
   }
 
   Future<void> saveOverlayPosition(
-    String uid,
+    AppSessionUser user,
     double positionX,
     double positionY,
   ) {
-    return _update(uid, {
+    return _update(user, {
       'qrOverlay/positionX': positionX.clamp(0.0, 1.0),
       'qrOverlay/positionY': positionY.clamp(0.0, 1.0),
       'qrOverlay/updatedAt': _timestamp,
     });
   }
 
-  Future<void> _primeUser(String uid) async {
-    final cached = await _cachedMap(uid);
+  Future<void> _primeUser(AppSessionUser user) async {
+    final dataKey = user.dataKey;
+    final cached = await _cachedMap(dataKey);
     if (cached.isNotEmpty) {
-      _emit(uid, AppUserData.fromValue(cached));
+      _emit(dataKey, AppUserData.fromValue(cached));
     } else {
-      _emit(uid, AppUserData.demo(uid: uid));
+      _emit(
+        dataKey,
+        AppUserData.demo(
+          uid: user.uid,
+          email: user.email,
+          username: user.displayName,
+        ),
+      );
     }
 
-    if (!await flushPendingWrites(uid)) {
+    if (!await flushPendingWrites(user)) {
       return;
     }
     try {
-      final remote = _map(await _get('users/$uid.json'));
+      final remote = _map(await _get('${_dataPath(user)}.json'));
       if (remote.isNotEmpty) {
-        await _cacheAndEmit(uid, remote);
+        await _cacheAndEmit(dataKey, remote);
       }
     } catch (_) {
       // Cached data has already been emitted; the next write/read will retry.
     }
   }
 
-  Future<void> _update(String uid, Map<String, Object?> updates) async {
+  Future<void> _update(
+    AppSessionUser user,
+    Map<String, Object?> updates,
+  ) async {
+    final dataKey = user.dataKey;
     final patch = _expandPathUpdates({...updates, 'updatedAt': _timestamp});
-    final current = await _cachedMap(uid);
+    final current = await _cachedMap(dataKey);
     final next = _deepCopy(current);
     _mergeDeep(next, patch);
-    await _cacheAndEmit(uid, next);
+    await _cacheAndEmit(dataKey, next);
 
     try {
-      if (!await flushPendingWrites(uid)) {
+      if (!await flushPendingWrites(user)) {
         throw const DatabaseRestException('Pending writes are not synced.');
       }
-      await _patch('users/$uid.json', patch);
+      await _patch('${_dataPath(user)}.json', patch);
     } catch (_) {
-      await _queuePatch(uid, patch);
+      await _queuePatch(dataKey, patch);
     }
   }
 
@@ -307,6 +470,42 @@ class DatabaseService {
 
   Future<void> _patch(String path, Object? data) async {
     await _request('PATCH', path, data: data);
+  }
+
+  Future<bool> _putIfAbsent(String path, Map<String, Object?> data) async {
+    final token = await _authService.requireValidIdToken();
+    final separator = path.contains('?') ? '&' : '?';
+    final uri = Uri.parse(
+      '$_databaseUrl/$path$separator'
+      'auth=${Uri.encodeQueryComponent(token)}',
+    );
+    final client = _clientFactory();
+    try {
+      final request = http.Request('PUT', uri)
+        ..headers['Content-Type'] = 'application/json; charset=utf-8'
+        ..headers['If-Match'] = 'null_etag'
+        ..body = jsonEncode(data);
+      final response = await client
+          .send(request)
+          .timeout(const Duration(seconds: 12));
+      if (response.statusCode == 412) {
+        await response.stream.drain<void>();
+        return false;
+      }
+      final text = await response.stream.bytesToString();
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        final decoded = text.isEmpty ? null : jsonDecode(text);
+        final message = decoded is Map ? decoded['error']?.toString() : null;
+        throw DatabaseRestException(message ?? 'Database request failed.');
+      }
+      return true;
+    } on TimeoutException {
+      throw const DatabaseRestException('Database request timed out.');
+    } on http.ClientException {
+      throw const DatabaseRestException('Network unavailable.');
+    } finally {
+      client.close();
+    }
   }
 
   Future<Object?> _request(String method, String path, {Object? data}) async {
@@ -331,7 +530,7 @@ class DatabaseService {
   }
 
   Future<Object?> _sendRequest(String method, Uri uri, {Object? data}) async {
-    final client = http.Client();
+    final client = _clientFactory();
     try {
       final request = http.Request(method, uri);
       if (data != null) {
@@ -403,21 +602,24 @@ class DatabaseService {
     await preferences.setStringList(_pendingKey(uid), pending);
   }
 
-  Map<String, Object?> _defaultUserMap(AppSessionUser user) {
+  Map<String, Object?> _defaultUserMap(
+    AppSessionUser user, {
+    bool sharedGuest = false,
+    String qrCodeId = '',
+  }) {
     final now = DateTime.now();
     final expiration = oneMonthFrom(now);
-    return {
-      'email': user.email,
+    final data = <String, Object?>{
       'username': user.displayName,
       'wallet': {'balance': 0.0},
       'userTypeLabel': AppUserData.defaultUserType,
-      'profile': {'localImagePath': ''},
       'ticket': {
         'expiresAt': expiration.toIso8601String(),
         'expiresAtText': formatAlbanianDate(expiration),
       },
-      'qrOverlay': {
-        'localImagePath': '',
+      'qr': {'value': qrCodeId.trim(), 'updatedAt': _timestamp},
+      'qrOverlay': <String, Object?>{
+        if (sharedGuest) 'type': 'default' else 'localImagePath': '',
         'positionX': 0.0,
         'positionY': 0.0,
         'updatedAt': _timestamp,
@@ -426,6 +628,11 @@ class DatabaseService {
       'createdAt': _timestamp,
       'updatedAt': _timestamp,
     };
+    if (!sharedGuest) {
+      data['email'] = user.email;
+      data['profile'] = {'localImagePath': ''};
+    }
+    return data;
   }
 
   Map<String, Object?> _expandPathUpdates(Map<String, Object?> updates) {
@@ -474,8 +681,14 @@ class DatabaseService {
   }
 
   String get _timestamp => DateTime.now().toUtc().toIso8601String();
-  String _cacheKey(String uid) => 'user_data_cache_$uid';
-  String _pendingKey(String uid) => 'pending_user_writes_$uid';
+  static String dataPathForUser(AppSessionUser user) =>
+      user.isAnonymous ? sharedGuestPath : 'users/${user.uid}';
+  static String cacheKeyForUser(AppSessionUser user) =>
+      'user_data_cache_${user.dataKey}';
+
+  String _dataPath(AppSessionUser user) => dataPathForUser(user);
+  String _cacheKey(String dataKey) => 'user_data_cache_$dataKey';
+  String _pendingKey(String dataKey) => 'pending_user_writes_$dataKey';
 
   Map<String, Object?> _map(Object? value) {
     if (value is! Map) {

@@ -5,6 +5,7 @@ import '../models/app_user_data.dart';
 import '../services/database_service.dart';
 import '../utils/albanian_date.dart';
 import '../utils/messages.dart';
+import '../utils/navigation.dart';
 import '../widgets/app_button.dart';
 import '../widgets/brand_mark.dart';
 import '../widgets/screen_shell.dart';
@@ -31,7 +32,7 @@ class _TicketExpirationScreenState extends State<TicketExpirationScreen> {
         email: widget.user.email,
         username: widget.user.displayName,
       ),
-      stream: _databaseService.watchUser(widget.user.uid),
+      stream: _databaseService.watchUser(widget.user),
       builder: (context, snapshot) {
         final data =
             snapshot.data ??
@@ -89,9 +90,7 @@ class _TicketExpirationScreenState extends State<TicketExpirationScreen> {
                   AppButton(
                     label: 'Kthehu',
                     style: AppButtonStyle.secondary,
-                    onPressed: _isSaving
-                        ? null
-                        : () => Navigator.of(context).pop(),
+                    onPressed: () => maybePopRoute(context),
                   ),
                 ],
               ),
@@ -122,7 +121,7 @@ class _TicketExpirationScreenState extends State<TicketExpirationScreen> {
     }
     setState(() => _isSaving = true);
     try {
-      await _databaseService.saveTicketExpiration(widget.user.uid, date);
+      await _databaseService.saveTicketExpiration(widget.user, date);
       if (mounted) {
         showAppMessage(context, 'Data e biletës u përditësua.');
       }

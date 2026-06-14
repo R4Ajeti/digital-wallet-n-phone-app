@@ -4,6 +4,7 @@ import '../models/app_session_user.dart';
 import '../models/app_user_data.dart';
 import '../services/database_service.dart';
 import '../utils/messages.dart';
+import '../utils/navigation.dart';
 import '../widgets/app_button.dart';
 import '../widgets/app_text_field.dart';
 import '../widgets/brand_mark.dart';
@@ -38,7 +39,7 @@ class _BalanceSettingsScreenState extends State<BalanceSettingsScreen> {
         email: widget.user.email,
         username: widget.user.displayName,
       ),
-      stream: _databaseService.watchUser(widget.user.uid),
+      stream: _databaseService.watchUser(widget.user),
       builder: (context, snapshot) {
         final data =
             snapshot.data ??
@@ -86,9 +87,7 @@ class _BalanceSettingsScreenState extends State<BalanceSettingsScreen> {
                   AppButton(
                     label: 'Kthehu',
                     style: AppButtonStyle.secondary,
-                    onPressed: _isSaving
-                        ? null
-                        : () => Navigator.of(context).pop(),
+                    onPressed: () => maybePopRoute(context),
                   ),
                 ],
               ),
@@ -112,7 +111,7 @@ class _BalanceSettingsScreenState extends State<BalanceSettingsScreen> {
 
     setState(() => _isSaving = true);
     try {
-      await _databaseService.saveBalance(widget.user.uid, balance);
+      await _databaseService.saveBalance(widget.user, balance);
       if (mounted) {
         showAppMessage(context, 'Bilanci u përditësua.');
       }

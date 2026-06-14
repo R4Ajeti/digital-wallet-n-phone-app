@@ -21,13 +21,17 @@ deployment target, not a replacement for the mobile builds.
 
 ## Important Limitations
 
-- Profile and QR overlay images are local to one browser/PWA installation.
-  They do not synchronize to other devices.
+- Profile images are local to one browser/PWA installation. Registered users'
+  QR overlay images are also local. Guest mode always uses the common bundled
+  QR overlay so guest QR presentation cannot diverge by browser.
 - Removing the PWA, clearing Safari website data, or clearing browser storage
   can remove local images and locally cached data.
 - Each selected local image is limited to about 1.5 MB after resizing.
 - Login, token refresh, uncached data, and synchronization still require an
   internet connection.
+- A first guest sign-in after installation or explicit logout requires an
+  internet connection. A guest session that was already opened online can
+  reopen its cached shared data offline if the user did not log out.
 - The app can open offline after it has been loaded successfully at least once.
   Existing app caching and queued database writes continue to handle app data.
 - Camera scanning requires HTTPS in production. `localhost` is allowed for
@@ -46,7 +50,7 @@ flutter pub get
 Run the web app in Chrome:
 
 ```bash
-flutter run -d chrome
+flutter run -d chrome --dart-define=GOOGLE_WEB_CLIENT_ID=...
 ```
 
 For testing from another device on the same network, a plain local IP address
@@ -59,7 +63,7 @@ testing.
 Create the release bundle:
 
 ```bash
-flutter build web --release
+flutter build web --release --dart-define=GOOGLE_WEB_CLIENT_ID=...
 ```
 
 The deployable files are written to:
@@ -96,7 +100,7 @@ Build and deploy only Hosting:
 
 ```bash
 flutter pub get
-flutter build web --release
+flutter build web --release --dart-define=GOOGLE_WEB_CLIENT_ID=...
 firebase deploy --only hosting
 ```
 
@@ -132,8 +136,9 @@ Use Safari for these steps:
 7. Turn on **Open as Web App**.
 8. Keep or edit the name, then tap **Add**.
 9. Return to the Home Screen and open **Kuleta** from its new icon.
-10. Log in inside the installed PWA. Safari and the installed web app might not
-    always share an existing login session.
+10. Log in or enter guest mode inside the installed PWA. Safari and the
+    installed web app might not always share an existing login session or
+    local guest profile photo.
 
 The installed PWA opens in a standalone window and can be launched like a
 normal app.
@@ -195,6 +200,10 @@ Test these on a real iPhone after deployment:
 - Allow, deny, and re-enable camera permission.
 - Scan and save a QR code.
 - Select profile and QR overlay images, then restart the PWA.
+- Enter guest mode from two browser profiles and verify shared wallet/QR data
+  with different local profile photos.
+- Log out of guest mode, enter it again online, and verify the local profile
+  photo remains.
 - Start online once, enable airplane mode, and test offline startup.
 - Queue a database change offline, reconnect, and verify synchronization.
 - Leave the app long enough to exercise Firebase token refresh.

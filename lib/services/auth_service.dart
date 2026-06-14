@@ -1,18 +1,34 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/app_session_user.dart';
+import 'google_sign_in_service.dart';
+
+typedef AuthHttpClientFactory = http.Client Function();
 
 class AuthService {
+  AuthService({
+    AuthHttpClientFactory? clientFactory,
+    Future<void> Function()? googleSignOut,
+    DateTime Function()? now,
+  }) : _clientFactory = clientFactory ?? http.Client.new,
+       _googleSignOut = googleSignOut ?? GoogleSignInService.instance.signOut,
+       _now = now ?? DateTime.now;
+
   static const _apiKey = 'AIzaSyDJe3177j-8bH9GJMFrnPyH-3YEAjDQ3Jg';
   static const _sessionKey = 'firebase_rest_auth_session';
   static final _controller = StreamController<AppSessionUser?>.broadcast();
 
   static _AuthSession? _session;
   static Future<void>? _loadFuture;
+
+  final AuthHttpClientFactory _clientFactory;
+  final Future<void> Function() _googleSignOut;
+  final DateTime Function() _now;
 
   Stream<AppSessionUser?> authStateChanges() async* {
     yield await currentUser();
@@ -31,9 +47,7 @@ class AuthService {
       throw const RestAuthException('no-current-user', 'No current user.');
     }
 
-    if (session.expiresAt.isAfter(
-      DateTime.now().add(const Duration(minutes: 5)),
-    )) {
+    if (session.expiresAt.isAfter(_now().add(const Duration(minutes: 5)))) {
       return session.idToken;
     }
 
@@ -50,7 +64,10 @@ class AuthService {
       'https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=$_apiKey',
       {'email': email.trim(), 'password': password, 'returnSecureToken': true},
     );
-    final session = _sessionFromIdentityResponse(response);
+    final session = _sessionFromIdentityResponse(
+      response,
+      provider: AppAuthProvider.password,
+    );
     await _saveSession(session);
     return session.user;
   }
@@ -64,7 +81,10 @@ class AuthService {
       'https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=$_apiKey',
       {'email': email.trim(), 'password': password, 'returnSecureToken': true},
     );
-    var session = _sessionFromIdentityResponse(response);
+    var session = _sessionFromIdentityResponse(
+      response,
+      provider: AppAuthProvider.password,
+    );
 
     final trimmedUsername = username.trim();
     if (trimmedUsername.isNotEmpty) {
@@ -79,6 +99,7 @@ class AuthService {
       session = _sessionFromIdentityResponse(
         update,
         fallbackRefreshToken: session.refreshToken,
+        provider: AppAuthProvider.password,
       );
     }
 
@@ -86,12 +107,82 @@ class AuthService {
     return session.user;
   }
 
+  Future<AppSessionUser> loginAnonymously() async {
+    final response = await _postJson(
+      'https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=$_apiKey',
+      {'returnSecureToken': true},
+    );
+    final session = _sessionFromIdentityResponse(
+      response,
+      provider: AppAuthProvider.anonymous,
+      fallbackDisplayName: 'Mysafir',
+    );
+    await _saveSession(session);
+    return session.user;
+  }
+
+  Future<AppSessionUser> loginWithGoogleIdToken(String googleIdToken) async {
+    final normalized = googleIdToken.trim();
+    if (normalized.isEmpty) {
+      throw const RestAuthException(
+        'google-invalid-credential',
+        'Missing Google ID credential.',
+      );
+    }
+
+    Map<String, dynamic> response;
+    try {
+      response = await _postJson(
+        'https://identitytoolkit.googleapis.com/v1/accounts:signInWithIdp?key=$_apiKey',
+        {
+          'requestUri': kIsWeb ? Uri.base.origin : 'http://localhost',
+          'postBody': Uri(
+            queryParameters: {
+              'id_token': normalized,
+              'providerId': 'google.com',
+            },
+          ).query,
+          'returnSecureToken': true,
+          'returnIdpCredential': true,
+        },
+      );
+    } on RestAuthException catch (error) {
+      final code = error.code.toUpperCase();
+      if (code.contains('EMAIL_EXISTS') ||
+          code.contains('FEDERATED_USER_ID_ALREADY_LINKED')) {
+        throw const RestAuthException(
+          'account-exists-with-different-credential',
+        );
+      }
+      rethrow;
+    }
+
+    if (response['needConfirmation'] == true) {
+      throw const RestAuthException('account-exists-with-different-credential');
+    }
+
+    final session = _sessionFromIdentityResponse(
+      response,
+      provider: AppAuthProvider.google,
+    );
+    await _saveSession(session);
+    return session.user;
+  }
+
   Future<void> logout() async {
     await _loadSession();
+    final provider = _session?.user.provider;
     _session = null;
     final preferences = await SharedPreferences.getInstance();
     await preferences.remove(_sessionKey);
     _controller.add(null);
+    if (provider == AppAuthProvider.google) {
+      try {
+        await _googleSignOut();
+      } catch (_) {
+        // Firebase logout is complete even if the Google SDK cannot clear UI.
+      }
+    }
   }
 
   Future<void> changePassword({
@@ -101,7 +192,10 @@ class AuthService {
     await _loadSession();
     final session = _session;
     final email = session?.user.email;
-    if (session == null || email == null || email.isEmpty) {
+    if (session == null ||
+        !session.user.canChangePassword ||
+        email == null ||
+        email.isEmpty) {
       throw const RestAuthException('no-current-user', 'No current user.');
     }
 
@@ -109,7 +203,10 @@ class AuthService {
       'https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=$_apiKey',
       {'email': email, 'password': currentPassword, 'returnSecureToken': true},
     );
-    final freshSession = _sessionFromIdentityResponse(signedIn);
+    final freshSession = _sessionFromIdentityResponse(
+      signedIn,
+      provider: AppAuthProvider.password,
+    );
 
     final updated = await _postJson(
       'https://identitytoolkit.googleapis.com/v1/accounts:update?key=$_apiKey',
@@ -123,8 +220,18 @@ class AuthService {
       _sessionFromIdentityResponse(
         updated,
         fallbackRefreshToken: freshSession.refreshToken,
+        provider: AppAuthProvider.password,
       ),
     );
+  }
+
+  static Future<void> resetForTesting({bool clearStoredSession = true}) async {
+    _session = null;
+    _loadFuture = null;
+    if (clearStoredSession) {
+      final preferences = await SharedPreferences.getInstance();
+      await preferences.remove(_sessionKey);
+    }
   }
 
   static Future<void> _loadSession() {
@@ -179,10 +286,11 @@ class AuthService {
         uid: userId,
         email: currentUser.email,
         displayName: currentUser.displayName,
+        provider: currentUser.provider,
       ),
       idToken: idToken,
       refreshToken: nextRefreshToken,
-      expiresAt: DateTime.now().add(Duration(seconds: expiresIn)),
+      expiresAt: _now().add(Duration(seconds: expiresIn)),
     );
   }
 
@@ -215,7 +323,7 @@ class AuthService {
     required String body,
     required String contentType,
   }) async {
-    final client = http.Client();
+    final client = _clientFactory();
     try {
       final response = await client
           .post(
@@ -256,7 +364,9 @@ class AuthService {
 
   _AuthSession _sessionFromIdentityResponse(
     Map<String, dynamic> data, {
+    required AppAuthProvider provider,
     String? fallbackRefreshToken,
+    String? fallbackDisplayName,
   }) {
     final idToken = _text(data['idToken']);
     final refreshToken = _text(
@@ -267,7 +377,7 @@ class AuthService {
     final email = _text(data['email']);
     final displayName = _text(
       data['displayName'],
-      fallback: _usernameFromEmail(email),
+      fallback: fallbackDisplayName ?? _usernameFromEmail(email),
     );
     final expiresIn = int.tryParse(_text(data['expiresIn'])) ?? 3600;
 
@@ -279,10 +389,15 @@ class AuthService {
     }
 
     return _AuthSession(
-      user: AppSessionUser(uid: uid, email: email, displayName: displayName),
+      user: AppSessionUser(
+        uid: uid,
+        email: email,
+        displayName: displayName,
+        provider: provider,
+      ),
       idToken: idToken,
       refreshToken: refreshToken,
-      expiresAt: DateTime.now().add(Duration(seconds: expiresIn)),
+      expiresAt: _now().add(Duration(seconds: expiresIn)),
     );
   }
 }
@@ -316,6 +431,7 @@ class _AuthSession {
         uid: _text(json['uid']),
         email: _text(json['email']),
         displayName: _text(json['displayName']),
+        provider: _providerFromValue(json['provider']),
       ),
       idToken: _text(json['idToken']),
       refreshToken: _text(json['refreshToken']),
@@ -330,6 +446,7 @@ class _AuthSession {
       'uid': user.uid,
       'email': user.email,
       'displayName': user.displayName,
+      'provider': user.provider.name,
       'idToken': idToken,
       'refreshToken': refreshToken,
       'expiresAt': expiresAt.toIso8601String(),
@@ -338,6 +455,9 @@ class _AuthSession {
 }
 
 String authErrorInAlbanian(Object error) {
+  if (error is RestGoogleSignInException) {
+    return authErrorInAlbanian(RestAuthException(error.code));
+  }
   if (error is RestAuthException) {
     final code = error.code.toUpperCase();
     if (code.contains('CONFIGURATION_NOT_FOUND')) {
@@ -345,6 +465,34 @@ String authErrorInAlbanian(Object error) {
           'Hap Firebase Console, kliko Get started dhe aktivizo Email/Password.';
     }
 
+    if (code.contains('ACCOUNT-EXISTS-WITH-DIFFERENT-CREDENTIAL') ||
+        code.contains('ACCOUNT_EXISTS_WITH_DIFFERENT_CREDENTIAL')) {
+      return 'Kjo adresë përdor një mënyrë tjetër kyçjeje. '
+          'Përdor metodën origjinale.';
+    }
+    if (code.contains('GOOGLE-CANCELED')) {
+      return 'Kyçja me Google u anulua.';
+    }
+    if (code.contains('GOOGLE-POPUP-CLOSED')) {
+      return 'Dritarja e Google u mbyll para përfundimit.';
+    }
+    if (code.contains('GOOGLE-UI-UNAVAILABLE')) {
+      return 'Dritarja e Google nuk mund të hapej. '
+          'Lejo dritaret kërcyese dhe provo përsëri.';
+    }
+    if (code.contains('GOOGLE-CONFIGURATION-FAILED')) {
+      return 'Kyçja me Google nuk është konfiguruar si duhet.';
+    }
+    if (code.contains('GOOGLE-INVALID-CREDENTIAL')) {
+      return 'Google nuk ktheu një kredencial të vlefshëm.';
+    }
+    if (code.contains('GOOGLE-PROVIDER-FAILED')) {
+      return 'Kyçja me Google dështoi. Provo përsëri.';
+    }
+    if (code.contains('OPERATION_NOT_ALLOWED') ||
+        code.contains('ADMIN_ONLY_OPERATION')) {
+      return 'Kjo mënyrë kyçjeje nuk është aktivizuar në Firebase.';
+    }
     if (code.contains('INVALID_EMAIL')) {
       return 'Email-i nuk është i vlefshëm.';
     }
@@ -384,4 +532,12 @@ String _text(Object? value, {String fallback = ''}) {
 String _usernameFromEmail(String? email) {
   final value = email?.split('@').first.trim() ?? '';
   return value.isEmpty ? 'Përdorues demo' : value;
+}
+
+AppAuthProvider _providerFromValue(Object? value) {
+  final name = _text(value);
+  return AppAuthProvider.values.firstWhere(
+    (provider) => provider.name == name,
+    orElse: () => AppAuthProvider.password,
+  );
 }

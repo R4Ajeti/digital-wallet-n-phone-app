@@ -20,7 +20,7 @@ class QrOverlayIconScreen extends StatelessWidget {
         email: user.email,
         username: user.displayName,
       ),
-      stream: _databaseService.watchUser(user.uid),
+      stream: _databaseService.watchUser(user),
       builder: (context, snapshot) {
         final data =
             snapshot.data ??
@@ -38,8 +38,7 @@ class QrOverlayIconScreen extends StatelessWidget {
           previewIcon: Icons.wallet_rounded,
           squarePreview: true,
           autoSaveOnPick: true,
-          onSave: (path) =>
-              _databaseService.saveOverlayImagePath(user.uid, path),
+          onSave: (path) => _databaseService.saveOverlayImagePath(user, path),
         );
       },
     );

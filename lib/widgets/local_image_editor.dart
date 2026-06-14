@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../app.dart';
 import '../services/local_image_service.dart';
 import '../utils/messages.dart';
+import '../utils/navigation.dart';
 import 'app_button.dart';
 import 'brand_mark.dart';
 import 'screen_shell.dart';
@@ -20,6 +21,7 @@ class LocalImageEditor extends StatefulWidget {
     required this.previewIcon,
     this.squarePreview = false,
     this.autoSaveOnPick = false,
+    this.keepReferenceLocal = false,
     super.key,
   });
 
@@ -32,6 +34,7 @@ class LocalImageEditor extends StatefulWidget {
   final IconData previewIcon;
   final bool squarePreview;
   final bool autoSaveOnPick;
+  final bool keepReferenceLocal;
 
   @override
   State<LocalImageEditor> createState() => _LocalImageEditorState();
@@ -110,16 +113,23 @@ class _LocalImageEditorState extends State<LocalImageEditor> {
                   color: AppColors.lavender,
                   borderRadius: BorderRadius.circular(16),
                 ),
-                child: const Row(
+                child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(Icons.phone_android_rounded, color: AppColors.primary),
-                    SizedBox(width: 10),
+                    const Icon(
+                      Icons.phone_android_rounded,
+                      color: AppColors.primary,
+                    ),
+                    const SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                        'Imazhi ruhet vetëm në këtë pajisje. Në Firebase '
-                        'ruhet vetëm një referencë lokale, jo fotografia.',
-                        style: TextStyle(fontSize: 13, height: 1.4),
+                        widget.keepReferenceLocal
+                            ? 'Fotografia dhe referenca e saj ruhen vetëm në '
+                                  'këtë pajisje ose shfletues. Dalja nga llogaria '
+                                  'nuk e heq, por pastrimi i të dhënave lokale po.'
+                            : 'Imazhi ruhet vetëm në këtë pajisje. Në Firebase '
+                                  'ruhet vetëm një referencë lokale, jo fotografia.',
+                        style: const TextStyle(fontSize: 13, height: 1.4),
                       ),
                     ),
                   ],
@@ -141,7 +151,7 @@ class _LocalImageEditorState extends State<LocalImageEditor> {
               AppButton(
                 label: 'Kthehu',
                 style: AppButtonStyle.secondary,
-                onPressed: () => Navigator.of(context).pop(),
+                onPressed: () => maybePopRoute(context),
               ),
             ],
           ),

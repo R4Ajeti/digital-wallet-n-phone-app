@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../services/auth_service.dart';
 import '../utils/messages.dart';
+import '../utils/navigation.dart';
 import '../utils/validators.dart';
 import '../widgets/app_button.dart';
 import '../widgets/app_text_field.dart';
@@ -96,9 +97,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                 AppButton(
                   label: 'Kthehu',
                   style: AppButtonStyle.secondary,
-                  onPressed: _isSaving
-                      ? null
-                      : () => Navigator.of(context).pop(),
+                  onPressed: () => maybePopRoute(context),
                 ),
               ],
             ),

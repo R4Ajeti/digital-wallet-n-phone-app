@@ -34,7 +34,7 @@ class _QrSettingsScreenState extends State<QrSettingsScreen> {
 
     return StreamBuilder<AppUserData>(
       initialData: fallback,
-      stream: _databaseService.watchUser(widget.user.uid),
+      stream: _databaseService.watchUser(widget.user),
       builder: (context, snapshot) {
         return QrSettingsContent(
           qrCodeId: (snapshot.data ?? fallback).qrCodeId,
@@ -46,7 +46,7 @@ class _QrSettingsScreenState extends State<QrSettingsScreen> {
   }
 
   Future<void> _saveQrCodeId(String value) {
-    return _databaseService.saveQrCodeId(widget.user.uid, value);
+    return _databaseService.saveQrCodeId(widget.user, value);
   }
 
   Future<void> _openScanner() async {

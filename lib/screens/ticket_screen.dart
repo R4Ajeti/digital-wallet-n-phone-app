@@ -13,30 +13,40 @@ import '../widgets/qr_ticket_widget.dart';
 import 'settings_screen.dart';
 
 class TicketScreen extends StatefulWidget {
-  const TicketScreen({required this.user, super.key});
+  const TicketScreen({
+    required this.user,
+    this.databaseService,
+    this.localImageService,
+    super.key,
+  });
 
   final AppSessionUser user;
+  final DatabaseService? databaseService;
+  final LocalImageService? localImageService;
 
   @override
   State<TicketScreen> createState() => _TicketScreenState();
 }
 
 class _TicketScreenState extends State<TicketScreen> {
-  final _databaseService = DatabaseService();
-  final _localImageService = LocalImageService();
+  late final DatabaseService _databaseService;
+  late final LocalImageService _localImageService;
 
   late final AppUserData _fallbackData;
   late final Stream<AppUserData> _userStream;
+  bool _isNavigatingBack = false;
 
   @override
   void initState() {
     super.initState();
+    _databaseService = widget.databaseService ?? DatabaseService();
+    _localImageService = widget.localImageService ?? LocalImageService();
     _fallbackData = AppUserData.demo(
       uid: widget.user.uid,
       email: widget.user.email,
       username: widget.user.displayName,
     );
-    _userStream = _databaseService.watchUser(widget.user.uid);
+    _userStream = _databaseService.watchUser(widget.user);
     _ensureData();
   }
 
@@ -79,7 +89,6 @@ class _TicketScreenState extends State<TicketScreen> {
               child: const ColoredBox(color: HomePalette.systemBar),
             ),
             SafeArea(
-              bottom: false,
               child: StreamBuilder<AppUserData>(
                 initialData: _fallbackData,
                 stream: _userStream,
@@ -89,15 +98,19 @@ class _TicketScreenState extends State<TicketScreen> {
                   return FutureBuilder<List<Uint8List?>>(
                     future: Future.wait([
                       _localImageService.resolveAvailableBytes(
-                        uid: widget.user.uid,
+                        uid: widget.user.profileImageNamespace,
                         kind: LocalImageKind.profile,
-                        firebasePath: data.profileImagePath,
+                        firebasePath: widget.user.isAnonymous
+                            ? ''
+                            : data.profileImagePath,
                       ),
-                      _localImageService.resolveAvailableBytes(
-                        uid: widget.user.uid,
-                        kind: LocalImageKind.overlay,
-                        firebasePath: data.overlayImagePath,
-                      ),
+                      widget.user.isAnonymous
+                          ? Future<Uint8List?>.value()
+                          : _localImageService.resolveAvailableBytes(
+                              uid: widget.user.uid,
+                              kind: LocalImageKind.overlay,
+                              firebasePath: data.overlayImagePath,
+                            ),
                     ]),
                     builder: (context, localPaths) {
                       final profileBytes = localPaths.data?[0];
@@ -125,46 +138,46 @@ class _TicketScreenState extends State<TicketScreen> {
   }) {
     final qrSize = (MediaQuery.sizeOf(context).width - 32) * 0.68;
 
-    return Stack(
-      clipBehavior: Clip.none,
+    return Column(
       children: [
-        SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 180),
-          physics: const ClampingScrollPhysics(),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _HomeHeader(onMenuPressed: _openSettings),
-              const SizedBox(height: 30),
-              QrTicketWidget(
-                qrValue: data.qrCodeId,
-                overlayImageBytes: overlayBytes,
-                positionX: data.overlayPositionX,
-                positionY: data.overlayPositionY,
-                maxQrSize: qrSize,
-                animateOverlay: true,
-                onPositionSaved: (x, y) =>
-                    _databaseService.saveOverlayPosition(widget.user.uid, x, y),
-              ),
-              const SizedBox(height: 12),
-              ProfileCard(
-                userTypeLabel: data.userTypeLabel,
-                imageBytes: profileBytes,
-                imageScale: 1.3,
-              ),
-              const SizedBox(height: 16),
-              TicketValidityCard(expirationText: data.expiresAtText),
-            ],
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
+            physics: const ClampingScrollPhysics(),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _HomeHeader(onMenuPressed: _openSettings),
+                const SizedBox(height: 30),
+                QrTicketWidget(
+                  qrValue: data.qrCodeId,
+                  overlayImageBytes: overlayBytes,
+                  positionX: data.overlayPositionX,
+                  positionY: data.overlayPositionY,
+                  maxQrSize: qrSize,
+                  animateOverlay: !widget.user.isAnonymous,
+                  onPositionSaved: (x, y) =>
+                      _databaseService.saveOverlayPosition(widget.user, x, y),
+                ),
+                const SizedBox(height: 12),
+                ProfileCard(
+                  userTypeLabel: data.userTypeLabel,
+                  imageBytes: profileBytes,
+                  imageScale: 1.3,
+                ),
+                const SizedBox(height: 16),
+                TicketValidityCard(expirationText: data.expiresAtText),
+              ],
+            ),
           ),
         ),
-        Positioned(
-          left: 16,
-          right: 16,
-          bottom: -35,
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
           child: SizedBox(
-            height: 44,
+            height: 54,
             child: OutlinedButton.icon(
-              onPressed: _goBack,
+              key: const Key('ticket-back-button'),
+              onPressed: _isNavigatingBack ? null : _goBack,
               icon: const Icon(Icons.chevron_left_rounded, color: _ticketGrey),
               label: const Text(
                 'Kthehu',
@@ -175,7 +188,11 @@ class _TicketScreenState extends State<TicketScreen> {
                 ),
               ),
               style: OutlinedButton.styleFrom(
-                padding: EdgeInsets.zero,
+                minimumSize: const Size.fromHeight(54),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 14,
+                ),
                 side: const BorderSide(color: _ticketBorder),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(18),
@@ -183,13 +200,6 @@ class _TicketScreenState extends State<TicketScreen> {
               ),
             ),
           ),
-        ),
-        const Positioned(
-          left: 0,
-          right: 0,
-          bottom: -87,
-          height: 40,
-          child: ColoredBox(color: HomePalette.systemBar),
         ),
       ],
     );
@@ -203,12 +213,16 @@ class _TicketScreenState extends State<TicketScreen> {
     );
   }
 
-  void _goBack() {
-    if (Navigator.of(context).canPop()) {
-      Navigator.of(context).pop();
+  Future<void> _goBack() async {
+    if (_isNavigatingBack) {
       return;
     }
-    showAppMessage(context, 'Jeni në ekranin kryesor.');
+    setState(() => _isNavigatingBack = true);
+    final didPop = await Navigator.of(context).maybePop();
+    if (!didPop && mounted) {
+      setState(() => _isNavigatingBack = false);
+      showAppMessage(context, 'Jeni në ekranin kryesor.');
+    }
   }
 }
 
@@ -219,7 +233,7 @@ const _ticketBorder = Color(0xFFD9D9D9);
 class _HomeHeader extends StatelessWidget {
   const _HomeHeader({required this.onMenuPressed});
 
-  static const _headerHeight = 48.0;
+  static const _headerHeight = 56.0;
   static const _menuButtonSize = 55.2;
   static const _brandSize = 46.0;
   static const _titleFontSize = 14.0;

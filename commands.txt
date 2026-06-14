@@ -2,3 +2,7 @@ adb devices
 flutter run -d 21121FDF6001KZ
 
 flutter run --release --no-resident -d 00008140-000C75443A62801C
+
+flutter build web --release
+firebase deploy --only hosting,database
+

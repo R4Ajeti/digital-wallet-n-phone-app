@@ -12,6 +12,7 @@ class AppButton extends StatelessWidget {
     this.isLoading = false,
     this.style = AppButtonStyle.primary,
     this.expand = true,
+    this.tooltip,
     super.key,
   });
 
@@ -21,6 +22,7 @@ class AppButton extends StatelessWidget {
   final bool isLoading;
   final AppButtonStyle style;
   final bool expand;
+  final String? tooltip;
 
   @override
   Widget build(BuildContext context) {
@@ -36,7 +38,7 @@ class AppButton extends StatelessWidget {
         ? const BorderSide(color: AppColors.outline)
         : BorderSide.none;
 
-    final button = FilledButton(
+    Widget button = FilledButton(
       onPressed: isLoading ? null : onPressed,
       style: FilledButton.styleFrom(
         foregroundColor: foreground,
@@ -59,23 +61,30 @@ class AppButton extends StatelessWidget {
               ),
             )
           : Row(
-              mainAxisSize: MainAxisSize.min,
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 if (icon != null) ...[
                   Icon(icon, size: 20),
                   const SizedBox(width: 9),
                 ],
-                Text(
-                  label,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
+                Flexible(
+                  child: Text(
+                    label,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
               ],
             ),
     );
+    if (tooltip != null) {
+      button = Tooltip(message: tooltip!, child: button);
+    }
 
     return expand ? SizedBox(width: double.infinity, child: button) : button;
   }

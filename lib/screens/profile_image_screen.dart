@@ -20,7 +20,7 @@ class ProfileImageScreen extends StatelessWidget {
         email: user.email,
         username: user.displayName,
       ),
-      stream: _databaseService.watchUser(user.uid),
+      stream: _databaseService.watchUser(user),
       builder: (context, snapshot) {
         final data =
             snapshot.data ??
@@ -30,14 +30,14 @@ class ProfileImageScreen extends StatelessWidget {
               username: user.displayName,
             );
         return LocalImageEditor(
-          uid: user.uid,
+          uid: user.profileImageNamespace,
           title: 'Ndrysho fotografinë',
           subtitle: 'Zgjidh portretin për kartën demo',
           kind: LocalImageKind.profile,
-          firebasePath: data.profileImagePath,
+          firebasePath: user.isAnonymous ? '' : data.profileImagePath,
           previewIcon: Icons.person_rounded,
-          onSave: (path) =>
-              _databaseService.saveProfileImagePath(user.uid, path),
+          keepReferenceLocal: user.isAnonymous,
+          onSave: (path) => _databaseService.saveProfileImagePath(user, path),
         );
       },
     );

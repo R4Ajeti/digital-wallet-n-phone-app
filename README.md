@@ -8,9 +8,12 @@ Authentication and Firebase Realtime Database.
 
 ## Overview
 
-- Email registration, sign-in, sign-out, and password changes.
+- Email registration, Google sign-in, shared guest mode, sign-out, and
+  provider-aware password changes.
 - Locally persisted sessions with automatic Firebase ID token refresh.
 - Private Realtime Database data for each user.
+- One authenticated shared guest workspace with a device-local guest profile
+  photo.
 - Editable wallet balance and ticket expiration date.
 - A QR code ID saved through manual entry or camera scanning.
 - A Firebase-managed default QR code ID for new users.
@@ -38,6 +41,7 @@ For web deployment and step-by-step iPhone installation, see
 - Flutter `3.44.2`
 - Dart `3.12.2`
 - Firebase Authentication REST API
+- `google_sign_in` for obtaining Google ID credentials
 - Firebase Realtime Database REST API
 - `mobile_scanner` for QR code scanning
 - `permission_handler` for camera permission
@@ -138,11 +142,84 @@ If iOS prevents the app from opening:
 
 ### Authentication
 
-Enable the **Email/Password** provider under
+Enable **Email/Password**, **Google**, and **Anonymous** under
 **Firebase Console > Authentication > Sign-in method**.
 
 The session is stored on the device. When the Firebase ID token is close to
 expiration, the app refreshes it through the Firebase Secure Token API.
+Google credentials are exchanged through Firebase Authentication's REST API,
+then stored in the same application session used by email/password and
+anonymous users.
+
+### Google Sign-In Configuration
+
+The repository intentionally does not contain newly generated OAuth values.
+Complete these console steps before testing Google sign-in:
+
+**Android**
+
+1. Confirm the Firebase Android app package matches
+   `android/app/build.gradle.kts`.
+2. Run `cd android && ./gradlew signingReport` and register the SHA-1 and
+   SHA-256 fingerprints for every debug and distribution signing certificate.
+3. Confirm Android and Web OAuth clients exist for the package and matching
+   certificate.
+4. Download a refreshed `google-services.json` to
+   `android/app/google-services.json`.
+5. Keep the Google Services Gradle plugin enabled. It is already applied in
+   this project.
+
+The currently checked local Android configuration has no OAuth client entries,
+so Google sign-in will remain unavailable until it is refreshed.
+
+**iOS**
+
+1. Confirm the Firebase iOS app bundle ID matches the Runner target.
+2. Download `GoogleService-Info.plist` to
+   `ios/Runner/GoogleService-Info.plist` and add it to the Runner target.
+3. Add the plist's reversed client ID as a URL scheme in
+   `ios/Runner/Info.plist`.
+4. Test on a simulator where supported and on a signed real device.
+
+The required plist and URL scheme are not currently present in this repository.
+
+**Web**
+
+1. Create or verify the Web OAuth client and configure its authorized
+   JavaScript origins.
+2. Add local and production domains to Firebase Authentication's authorized
+   domains.
+3. Supply the Web OAuth client at build or run time with
+   `--dart-define=GOOGLE_WEB_CLIENT_ID=...`.
+4. Verify popup/FedCM behavior in a real browser on `localhost` and the
+   production HTTPS domain.
+
+The app uses the Google Identity Services button rendered by the current
+`google_sign_in` web implementation.
+
+### Shared Guest Workspace
+
+Each guest installation receives its own Firebase anonymous identity and token,
+but all guest application data is routed to:
+
+```text
+/sharedGuest/default
+```
+
+The first shared record is created with an atomic conditional write. Existing
+guest data is never replaced during sign-in. Guest updates use field-level
+patches with last-write-wins behavior, and active guest screens periodically
+refresh the shared record.
+
+Balance, ticket settings, QR value, scanner result, overlay position, and the
+bundled QR overlay selection are shared. The guest profile photo and its local
+lookup reference use the stable `shared_guest_profile` namespace and never
+leave the installation. Logging out and entering guest mode again retains that
+photo on the same installation even if Firebase assigns another anonymous UID.
+
+Clearing browser/site storage, clearing app data, uninstalling the native app,
+or using another device may remove or hide the local guest photo. Do not put
+private or sensitive information in the shared guest workspace.
 
 ### Default QR Code ID
 
@@ -203,16 +280,40 @@ users/{uid}/
     demoMode
   createdAt
   updatedAt
+
+sharedGuest/default/
+  username
+  userTypeLabel
+  wallet/
+    balance
+  ticket/
+    expiresAt
+    expiresAtText
+  qr/
+    value
+    updatedAt
+  qrOverlay/
+    type
+    positionX
+    positionY
+    updatedAt
+  settings/
+    language
+    demoMode
+  createdAt
+  updatedAt
 ```
 
-Image paths are local and do not synchronize image files between devices. The
-QR scanner stores only the decoded text, not camera frames or images.
+Image paths are local and do not synchronize image files between devices.
+Guest profile references are excluded from Firebase entirely. The QR scanner
+stores only the decoded text, not camera frames or images.
 
 ### Database Rules
 
 `database.rules.json` allows public read access only to `appConfig`, prevents
-client writes to that configuration, and restricts each user profile to its
-authenticated owner.
+client writes to that configuration, restricts each user profile to its
+authenticated owner, and permits the validated shared guest record only for
+anonymous-provider sessions.
 
 Deploy the rules:
 
