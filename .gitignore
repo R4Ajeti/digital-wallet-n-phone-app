@@ -56,3 +56,4 @@ android/local.properties
 /android/.gradle/
 commands.txt
 /test/failures/
+.firebase/hosting.YnVpbGQvd2Vi.cache
