@@ -177,8 +177,9 @@ flutter build web --release
 firebase deploy --only hosting
 ```
 
-Then close and reopen the PWA. The service worker checks the network first and
-caches the new app files as they are received. If an old version remains:
+The service worker downloads the new app shell in the background. When it is
+ready, the installed PWA shows **Një version i ri është gati.** Tap
+**Rifresko** to activate it and reload the app. If an old version remains:
 
 1. Make sure the new Firebase deployment completed.
 2. Open the Hosting URL once in Safari.

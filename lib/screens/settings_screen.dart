@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import '../app.dart';
 import '../models/app_session_user.dart';
 import '../services/auth_service.dart';
+import '../services/android_update_service.dart';
 import '../utils/messages.dart';
+import '../widgets/android_update_checker.dart';
 import '../widgets/brand_mark.dart';
 import '../widgets/screen_shell.dart';
 import 'change_password_screen.dart';
@@ -25,6 +27,7 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   final _authService = AuthService();
   bool _isLoggingOut = false;
+  bool _isCheckingForUpdate = false;
 
   @override
   Widget build(BuildContext context) {
@@ -88,6 +91,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 title: 'Ndrysho fjalëkalimin',
                 onTap: () => _open(const ChangePasswordScreen()),
               ),
+            if (isAndroidUpdateSupported)
+              _MenuTile(
+                key: const Key('check-for-update-tile'),
+                icon: Icons.system_update_rounded,
+                title: _isCheckingForUpdate
+                    ? 'Duke kontrolluar…'
+                    : 'Kontrollo për përditësime',
+                onTap: _isCheckingForUpdate ? null : _checkForUpdate,
+              ),
             _MenuTile(
               icon: Icons.logout_rounded,
               title: _isLoggingOut ? 'Duke dalë…' : 'Dil nga aplikacioni',
@@ -141,6 +153,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
         setState(() => _isLoggingOut = false);
         showAppMessage(context, 'Dalja dështoi. Provo përsëri.', isError: true);
       }
+    }
+  }
+
+  Future<void> _checkForUpdate() async {
+    setState(() => _isCheckingForUpdate = true);
+    await checkForAndroidUpdate(context, showStatus: true);
+    if (mounted) {
+      setState(() => _isCheckingForUpdate = false);
     }
   }
 }

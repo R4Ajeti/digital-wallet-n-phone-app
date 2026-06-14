@@ -4,6 +4,7 @@ import 'models/app_session_user.dart';
 import 'screens/home_screen.dart';
 import 'screens/login_screen.dart';
 import 'services/auth_service.dart';
+import 'widgets/android_update_checker.dart';
 
 class AppColors {
   const AppColors._();
@@ -30,7 +31,7 @@ class KuletaDigitaleApp extends StatelessWidget {
       title: 'Kuleta Digitale',
       debugShowCheckedModeBanner: false,
       theme: buildAppTheme(),
-      home: const AuthGate(),
+      home: const AndroidUpdateChecker(child: AuthGate()),
     );
   }
 }

@@ -1,0 +1,150 @@
+name: Android APK Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag matching pubspec.yaml, for example v1.0.1"
+        required: true
+        type: string
+      changelog:
+        description: "Short release changelog"
+        required: false
+        default: "Android stability and update improvements."
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    env:
+      ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+      RELEASE_INPUT_TAG: ${{ inputs.tag }}
+      RELEASE_INPUT_CHANGELOG: ${{ inputs.changelog }}
+      GH_TOKEN: ${{ github.token }}
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Validate release version
+        id: version
+        shell: bash
+        run: |
+          app_version="$(awk '/^version:/{print $2}' pubspec.yaml)"
+          version_name="${app_version%%+*}"
+          version_code="${app_version##*+}"
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            release_tag="${RELEASE_INPUT_TAG}"
+          else
+            release_tag="${GITHUB_REF_NAME}"
+          fi
+          if [[ "${release_tag}" != "v${version_name}" ]]; then
+            echo "::error::Tag ${release_tag} must match pubspec version v${version_name}."
+            exit 1
+          fi
+          echo "name=${version_name}" >> "${GITHUB_OUTPUT}"
+          echo "code=${version_code}" >> "${GITHUB_OUTPUT}"
+          echo "tag=${release_tag}" >> "${GITHUB_OUTPUT}"
+
+      - name: Require Android signing secrets
+        shell: bash
+        run: |
+          for name in \
+            ANDROID_KEYSTORE_BASE64 \
+            ANDROID_KEYSTORE_PASSWORD \
+            ANDROID_KEY_ALIAS \
+            ANDROID_KEY_PASSWORD
+          do
+            if [[ -z "${!name}" ]]; then
+              echo "::error::Required GitHub Actions secret ${name} is missing."
+              exit 1
+            fi
+          done
+
+      - name: Restore release keystore
+        shell: bash
+        run: |
+          keystore_path="${RUNNER_TEMP}/kuleta-release.jks"
+          printf '%s' "${ANDROID_KEYSTORE_BASE64}" | base64 --decode > "${keystore_path}"
+          echo "ANDROID_KEYSTORE_PATH=${keystore_path}" >> "${GITHUB_ENV}"
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Test
+        run: flutter test
+
+      - name: Build signed release APK
+        run: flutter build apk --release
+
+      - name: Prepare release asset and notes
+        id: asset
+        shell: bash
+        run: |
+          apk_name="kuleta-digitale-n-app-${{ steps.version.outputs.tag }}-android.apk"
+          apk_path="${RUNNER_TEMP}/${apk_name}"
+          cp build/app/outputs/flutter-apk/app-release.apk "${apk_path}"
+          changelog="${RELEASE_INPUT_CHANGELOG}"
+          if [[ -z "${changelog}" ]]; then
+            changelog="$(git log -1 --pretty=%s)"
+          fi
+          cat > "${RUNNER_TEMP}/release-notes.md" <<EOF
+          ## Changelog
+
+          ${changelog}
+
+          ## Build
+
+          - Build date: $(date -u +%Y-%m-%d)
+          - Version name: ${{ steps.version.outputs.name }}
+          - Version code: ${{ steps.version.outputs.code }}
+
+          ## Android installation
+
+          Download \`${apk_name}\`, allow installation from this source when
+          Android asks, and confirm the installation. Android always requires
+          user confirmation; the app never installs updates silently.
+          EOF
+          echo "path=${apk_path}" >> "${GITHUB_OUTPUT}"
+
+      - name: Create or update GitHub Release
+        shell: bash
+        run: |
+          tag="${{ steps.version.outputs.tag }}"
+          if gh release view "${tag}" >/dev/null 2>&1; then
+            gh release upload "${tag}" "${{ steps.asset.outputs.path }}" --clobber
+            gh release edit "${tag}" \
+              --title "Kuleta Digitale ${tag}" \
+              --notes-file "${RUNNER_TEMP}/release-notes.md"
+          else
+            gh release create "${tag}" "${{ steps.asset.outputs.path }}" \
+              --title "Kuleta Digitale ${tag}" \
+              --notes-file "${RUNNER_TEMP}/release-notes.md" \
+              --verify-tag
+          fi

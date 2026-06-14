@@ -22,6 +22,7 @@ Authentication and Firebase Realtime Database.
 - Albanian app interface and messages.
 - Android and iOS launcher icons.
 - Installable Progressive Web App support for iPhone and iPad.
+- Android GitHub Release checks with user-confirmed APK updates.
 
 For web deployment and step-by-step iPhone installation, see
 [`README_PWA.MD`](README_PWA.MD).
@@ -34,7 +35,7 @@ For web deployment and step-by-step iPhone installation, see
 | Firebase project ID | `kuleta-digitale-n-db` |
 | Android application ID | `com.gentool.kuletadigitalen` |
 | iOS bundle ID | `com.gentool.kuletadigitalen` |
-| Version | `1.0.0+1` |
+| Version | `1.0.1+2` |
 
 ## Technology
 
@@ -98,8 +99,10 @@ flutter build apk --debug
 
 The APK is created at `build/app/outputs/flutter-apk/app-debug.apk`.
 
-> The current Android configuration uses debug signing for release builds.
-> Configure a private release keystore before publishing to Google Play.
+Local release builds fall back to debug signing. Published GitHub APKs use the
+private signing credentials configured in GitHub Actions. See
+[`docs/android-releases.md`](docs/android-releases.md) for release, signing,
+installation, update-checking, and test instructions.
 
 ## Running on iPhone
 

@@ -38,8 +38,43 @@
 
   <title>Kuleta Digitale</title>
   <link rel="manifest" href="manifest.json">
+  <style>
+    #pwa-update-banner {
+      align-items: center;
+      background: #211d35;
+      border-radius: 14px;
+      bottom: max(18px, env(safe-area-inset-bottom));
+      box-shadow: 0 10px 30px rgba(33, 29, 53, 0.24);
+      color: #fff;
+      display: none;
+      font-family: Arial, sans-serif;
+      gap: 14px;
+      left: 50%;
+      max-width: min(520px, calc(100% - 32px));
+      padding: 14px 16px;
+      position: fixed;
+      transform: translateX(-50%);
+      width: max-content;
+      z-index: 9999;
+    }
+
+    #pwa-update-banner button {
+      background: #ff7163;
+      border: 0;
+      border-radius: 10px;
+      color: #fff;
+      cursor: pointer;
+      font: inherit;
+      font-weight: 700;
+      padding: 10px 13px;
+    }
+  </style>
 </head>
 <body>
+  <div id="pwa-update-banner" role="status" aria-live="polite">
+    <span>Një version i ri është gati.</span>
+    <button id="pwa-update-button" type="button">Rifresko</button>
+  </div>
   <!--
     You can customize the "flutter_bootstrap.js" script.
     This is useful to provide a custom configuration to the Flutter loader
@@ -51,10 +86,50 @@
   <script src="flutter_bootstrap.js" async></script>
   <script>
     if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('sw.js').catch((error) => {
-          console.warn('Service worker registration failed:', error);
+      window.addEventListener('load', async () => {
+        let refreshing = false;
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          if (!refreshing) {
+            refreshing = true;
+            window.location.reload();
+          }
         });
+
+        try {
+          const registration = await navigator.serviceWorker.register('sw.js');
+          const banner = document.getElementById('pwa-update-banner');
+          const updateButton = document.getElementById('pwa-update-button');
+
+          const showUpdate = (worker) => {
+            banner.style.display = 'flex';
+            updateButton.onclick = () => {
+              worker.postMessage({type: 'SKIP_WAITING'});
+            };
+          };
+
+          if (registration.waiting && navigator.serviceWorker.controller) {
+            showUpdate(registration.waiting);
+          }
+
+          registration.addEventListener('updatefound', () => {
+            const worker = registration.installing;
+            if (!worker) {
+              return;
+            }
+            worker.addEventListener('statechange', () => {
+              if (
+                worker.state === 'installed' &&
+                navigator.serviceWorker.controller
+              ) {
+                showUpdate(worker);
+              }
+            });
+          });
+
+          await registration.update();
+        } catch (error) {
+          console.warn('Service worker registration failed:', error);
+        }
       });
     }
   </script>
