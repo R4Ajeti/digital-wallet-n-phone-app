@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 
@@ -49,6 +50,11 @@ class _QrSettingsScreenState extends State<QrSettingsScreen> {
   }
 
   Future<void> _openScanner() async {
+    if (kIsWeb) {
+      await _pushScanner();
+      return;
+    }
+
     final currentStatus = await Permission.camera.status;
     if (!mounted) {
       return;
@@ -67,11 +73,7 @@ class _QrSettingsScreenState extends State<QrSettingsScreen> {
     }
 
     if (status.isGranted) {
-      await Navigator.of(context).push(
-        MaterialPageRoute<void>(
-          builder: (_) => QrScannerScreen(user: widget.user),
-        ),
-      );
+      await _pushScanner();
       return;
     }
 
@@ -88,6 +90,26 @@ class _QrSettingsScreenState extends State<QrSettingsScreen> {
   }
 
   Future<void> _showCameraSettingsDialog({required bool restricted}) async {
+    if (kIsWeb) {
+      await showDialog<void>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Lejo përdorimin e kamerës'),
+          content: const Text(
+            'Hap cilësimet e faqes në Safari ose në shfletuesin tënd, '
+            'lejo kamerën dhe provo përsëri. Adresa duhet të përdorë HTTPS.',
+          ),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Në rregull'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
     final openSettings = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -114,6 +136,14 @@ class _QrSettingsScreenState extends State<QrSettingsScreen> {
     if (openSettings == true) {
       await openAppSettings();
     }
+  }
+
+  Future<void> _pushScanner() {
+    return Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => QrScannerScreen(user: widget.user),
+      ),
+    );
   }
 }
 

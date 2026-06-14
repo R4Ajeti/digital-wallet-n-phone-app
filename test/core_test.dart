@@ -129,7 +129,7 @@ void main() {
         home: Scaffold(
           body: QrTicketWidget(
             qrValue: '',
-            overlayImagePath: '',
+            overlayImageBytes: null,
             positionX: 0.5,
             positionY: 0.5,
             onPositionSaved: (_, _) async {},
@@ -150,7 +150,7 @@ void main() {
         home: Scaffold(
           body: QrTicketWidget(
             qrValue: 'QR-AKTIV-123',
-            overlayImagePath: '',
+            overlayImageBytes: null,
             positionX: 0.5,
             positionY: 0.5,
             onPositionSaved: (_, _) async {},
@@ -181,7 +181,7 @@ void main() {
                 children: [
                   QrTicketWidget(
                     qrValue: 'QR-PREVIEW-2026',
-                    overlayImagePath: '',
+                    overlayImageBytes: null,
                     positionX: 0.5,
                     positionY: 0.42,
                     onPositionSaved: (_, _) async {},
@@ -189,7 +189,7 @@ void main() {
                   const SizedBox(height: 16),
                   const ProfileCard(
                     userTypeLabel: AppUserData.defaultUserType,
-                    imagePath: '',
+                    imageBytes: null,
                   ),
                   const SizedBox(height: 16),
                   const TicketValidityCard(expirationText: '13 Korrik 2026'),

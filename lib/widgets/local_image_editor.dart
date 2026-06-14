@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 
@@ -40,7 +40,8 @@ class LocalImageEditor extends StatefulWidget {
 class _LocalImageEditorState extends State<LocalImageEditor> {
   final _imageService = LocalImageService();
 
-  String _selectedPath = '';
+  String _selectedReference = '';
+  Uint8List? _selectedBytes;
   bool _pickedInSession = false;
   bool _isPicking = false;
   bool _isSaving = false;
@@ -48,25 +49,28 @@ class _LocalImageEditorState extends State<LocalImageEditor> {
   @override
   void initState() {
     super.initState();
-    _resolveInitialPath();
+    _resolveInitialImage();
   }
 
   @override
   void didUpdateWidget(covariant LocalImageEditor oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (!_pickedInSession && oldWidget.firebasePath != widget.firebasePath) {
-      _resolveInitialPath();
+      _resolveInitialImage();
     }
   }
 
-  Future<void> _resolveInitialPath() async {
-    final resolved = await _imageService.resolveAvailablePath(
+  Future<void> _resolveInitialImage() async {
+    final bytes = await _imageService.resolveAvailableBytes(
       uid: widget.uid,
       kind: widget.kind,
       firebasePath: widget.firebasePath,
     );
     if (mounted && !_pickedInSession) {
-      setState(() => _selectedPath = resolved);
+      setState(() {
+        _selectedReference = widget.firebasePath;
+        _selectedBytes = bytes;
+      });
     }
   }
 
@@ -87,7 +91,7 @@ class _LocalImageEditorState extends State<LocalImageEditor> {
               const SizedBox(height: 30),
               Center(
                 child: _ImagePreview(
-                  path: _selectedPath,
+                  bytes: _selectedBytes,
                   icon: widget.previewIcon,
                   square: widget.squarePreview,
                 ),
@@ -114,7 +118,7 @@ class _LocalImageEditorState extends State<LocalImageEditor> {
                     Expanded(
                       child: Text(
                         'Imazhi ruhet vetëm në këtë pajisje. Në Firebase '
-                        'ruhet vetëm rruga lokale e skedarit.',
+                        'ruhet vetëm një referencë lokale, jo fotografia.',
                         style: TextStyle(fontSize: 13, height: 1.4),
                       ),
                     ),
@@ -127,7 +131,10 @@ class _LocalImageEditorState extends State<LocalImageEditor> {
                   label: 'Ruaj',
                   icon: Icons.save_outlined,
                   isLoading: _isSaving,
-                  onPressed: _selectedPath.isEmpty ? null : _save,
+                  onPressed:
+                      _selectedReference.isEmpty || _selectedBytes == null
+                      ? null
+                      : _save,
                 ),
                 const SizedBox(height: 10),
               ],
@@ -146,18 +153,23 @@ class _LocalImageEditorState extends State<LocalImageEditor> {
   Future<void> _pickImage() async {
     setState(() => _isPicking = true);
     try {
-      final path = await _imageService.pickAndPersist(
+      final selection = await _imageService.pickAndPersist(
         uid: widget.uid,
         kind: widget.kind,
       );
-      if (mounted && path != null) {
+      if (mounted && selection != null) {
         setState(() {
-          _selectedPath = path;
+          _selectedReference = selection.reference;
+          _selectedBytes = selection.bytes;
           _pickedInSession = true;
         });
         if (widget.autoSaveOnPick) {
           await _save();
         }
+      }
+    } on LocalImageException catch (error) {
+      if (mounted) {
+        showAppMessage(context, error.message, isError: true);
       }
     } catch (_) {
       if (mounted) {
@@ -177,7 +189,7 @@ class _LocalImageEditorState extends State<LocalImageEditor> {
   Future<void> _save() async {
     setState(() => _isSaving = true);
     try {
-      await widget.onSave(_selectedPath);
+      await widget.onSave(_selectedReference);
       if (mounted) {
         showAppMessage(
           context,
@@ -200,18 +212,17 @@ class _LocalImageEditorState extends State<LocalImageEditor> {
 
 class _ImagePreview extends StatelessWidget {
   const _ImagePreview({
-    required this.path,
+    required this.bytes,
     required this.icon,
     required this.square,
   });
 
-  final String path;
+  final Uint8List? bytes;
   final IconData icon;
   final bool square;
 
   @override
   Widget build(BuildContext context) {
-    final hasImage = path.isNotEmpty && File(path).existsSync();
     final width = square ? 168.0 : 184.0;
     final height = square ? 168.0 : 220.0;
 
@@ -231,9 +242,9 @@ class _ImagePreview extends StatelessWidget {
         ],
       ),
       clipBehavior: Clip.antiAlias,
-      child: hasImage
-          ? Image.file(
-              File(path),
+      child: bytes != null
+          ? Image.memory(
+              bytes!,
               fit: BoxFit.cover,
               errorBuilder: (_, _, _) => _PreviewFallback(icon: icon),
             )

@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 
+import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/app_session_user.dart';
@@ -193,7 +193,7 @@ class AuthService {
     return _send(
       url: url,
       body: jsonEncode(body),
-      contentType: ContentType.json,
+      contentType: 'application/json; charset=utf-8',
     );
   }
 
@@ -206,31 +206,25 @@ class AuthService {
                 '${Uri.encodeQueryComponent(entry.key)}=${Uri.encodeQueryComponent(entry.value)}',
           )
           .join('&'),
-      contentType: ContentType(
-        'application',
-        'x-www-form-urlencoded',
-        charset: 'utf-8',
-      ),
+      contentType: 'application/x-www-form-urlencoded; charset=utf-8',
     );
   }
 
   Future<Map<String, dynamic>> _send({
     required String url,
     required String body,
-    required ContentType contentType,
+    required String contentType,
   }) async {
-    final client = HttpClient()
-      ..connectionTimeout = const Duration(seconds: 12);
+    final client = http.Client();
     try {
-      final request = await client
-          .postUrl(Uri.parse(url))
-          .timeout(const Duration(seconds: 12));
-      request.headers.contentType = contentType;
-      request.write(body);
-      final response = await request.close().timeout(
-        const Duration(seconds: 20),
-      );
-      final text = await response.transform(utf8.decoder).join();
+      final response = await client
+          .post(
+            Uri.parse(url),
+            headers: {'Content-Type': contentType},
+            body: body,
+          )
+          .timeout(const Duration(seconds: 20));
+      final text = response.body;
       final decoded = text.isEmpty
           ? <String, dynamic>{}
           : jsonDecode(text) as Map<String, dynamic>;
@@ -250,13 +244,13 @@ class AuthService {
         'network-request-failed',
         'Request timed out.',
       );
-    } on SocketException {
+    } on http.ClientException {
       throw const RestAuthException(
         'network-request-failed',
         'Network failed.',
       );
     } finally {
-      client.close(force: true);
+      client.close();
     }
   }
 

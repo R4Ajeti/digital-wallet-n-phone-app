@@ -86,26 +86,26 @@ class _TicketScreenState extends State<TicketScreen> {
                 builder: (context, snapshot) {
                   final data = snapshot.data ?? _fallbackData;
 
-                  return FutureBuilder<List<String>>(
+                  return FutureBuilder<List<Uint8List?>>(
                     future: Future.wait([
-                      _localImageService.resolveAvailablePath(
+                      _localImageService.resolveAvailableBytes(
                         uid: widget.user.uid,
                         kind: LocalImageKind.profile,
                         firebasePath: data.profileImagePath,
                       ),
-                      _localImageService.resolveAvailablePath(
+                      _localImageService.resolveAvailableBytes(
                         uid: widget.user.uid,
                         kind: LocalImageKind.overlay,
                         firebasePath: data.overlayImagePath,
                       ),
                     ]),
                     builder: (context, localPaths) {
-                      final profilePath = localPaths.data?[0] ?? '';
-                      final overlayPath = localPaths.data?[1] ?? '';
+                      final profileBytes = localPaths.data?[0];
+                      final overlayBytes = localPaths.data?[1];
                       return _buildContent(
                         data: data,
-                        profilePath: profilePath,
-                        overlayPath: overlayPath,
+                        profileBytes: profileBytes,
+                        overlayBytes: overlayBytes,
                       );
                     },
                   );
@@ -120,8 +120,8 @@ class _TicketScreenState extends State<TicketScreen> {
 
   Widget _buildContent({
     required AppUserData data,
-    required String profilePath,
-    required String overlayPath,
+    required Uint8List? profileBytes,
+    required Uint8List? overlayBytes,
   }) {
     final qrSize = (MediaQuery.sizeOf(context).width - 32) * 0.68;
 
@@ -138,7 +138,7 @@ class _TicketScreenState extends State<TicketScreen> {
               const SizedBox(height: 30),
               QrTicketWidget(
                 qrValue: data.qrCodeId,
-                overlayImagePath: overlayPath,
+                overlayImageBytes: overlayBytes,
                 positionX: data.overlayPositionX,
                 positionY: data.overlayPositionY,
                 maxQrSize: qrSize,
@@ -149,7 +149,7 @@ class _TicketScreenState extends State<TicketScreen> {
               const SizedBox(height: 12),
               ProfileCard(
                 userTypeLabel: data.userTypeLabel,
-                imagePath: profilePath,
+                imageBytes: profileBytes,
                 imageScale: 1.3,
               ),
               const SizedBox(height: 16),
